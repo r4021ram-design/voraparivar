@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import type { Person } from '../types';
 import { translations, type Language } from '../i18n';
 
@@ -101,7 +102,7 @@ const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps)
                                             reader.readAsDataURL(file);
 
                                             // Upload to Supabase
-                                            const { supabase } = await import('../lib/supabase');
+                                            // const { supabase } = await import('../lib/supabase'); // Removed dynamic import
                                             const fileExt = file.name.split('.').pop();
                                             const fileName = `${formData.id}/${Date.now()}.${fileExt}`;
                                             const { error: uploadError } = await supabase.storage
@@ -255,7 +256,7 @@ const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps)
                                                 };
                                                 reader.readAsDataURL(file);
 
-                                                const { supabase } = await import('../lib/supabase');
+                                                // const { supabase } = await import('../lib/supabase'); // Removed dynamic import
                                                 const fileExt = file.name.split('.').pop();
                                                 const fileName = `${formData.id}/spouse_${Date.now()}.${fileExt}`;
 

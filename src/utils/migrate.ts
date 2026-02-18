@@ -5,6 +5,25 @@ import { familyTreeData } from '../data';
 export const migrateDataToSupabase = async () => {
     console.log("Starting migration...");
 
+    // 0. Check if data already exists
+    const { count, error: countError } = await supabase
+        .from('people')
+        .select('*', { count: 'exact', head: true });
+
+    if (countError) {
+        console.error("Error checking existing data:", countError);
+        alert("Failed to check existing data in Supabase.");
+        return;
+    }
+
+    if (count !== null && count > 0) {
+        const proceed = confirm(`Supabase already contains ${count} records. Do you want to proceed? This might create duplicates.`);
+        if (!proceed) {
+            console.log("Migration aborted by user.");
+            return;
+        }
+    }
+
     // 1. Get data from LocalStorage or Fallback
     const localData = localStorage.getItem('vanshavali_data_v3');
     const rootNode: Person = localData ? JSON.parse(localData) : familyTreeData;
@@ -34,6 +53,9 @@ export const migrateDataToSupabase = async () => {
             spouse_name: person.spouse,
             spouse_occupation: person.spouseOccupation,
             spouse_phone: person.spousePhoneNumber,
+            spouse_dob: person.spouseDateOfBirth, // Kept raw string? Postgres expects date/timestamptz.
+            spouse_dod: person.spouseDateOfDeath, // It's safer to not cast if the format is unsure, but supabase might error. 
+            // In App.tsx insert, it wasn't casting either. Let's assume the string format YYYY-MM-DD matches or is null.
             parent_id: parentId
         };
 

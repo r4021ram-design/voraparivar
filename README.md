@@ -35,3 +35,14 @@ A React + TypeScript + Vite application for managing and visualizing a family tr
 - TypeScript
 - Vite
 - Tailwind CSS
+
+## Deployment
+
+### Netlify
+
+1. Connect your GitHub repository to Netlify.
+2. **Build Command:** `npm run build`
+3. **Publish Directory:** `dist`
+4. **Environment Variables:**
+    - `VITE_SUPABASE_URL`: Your Supabase Project URL
+    - `VITE_SUPABASE_ANON_KEY`: Your Supabase Anon Key
