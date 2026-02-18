@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Scrollbar for nicer look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+
+/* Custom Image Background with Lightening Overlay */
+body {
+  min-height: 100vh;
+  margin: 0;
+  position: relative;
+  overflow: hidden;
+  background-color: #f8fafc;
+  /* Fallback */
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  /* The custom image */
+  background-image: url('/background.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  /* Blur slightly to help text readability optionally, but user just asked for lighter */
+  /* filter: blur(2px); */
+
+  z-index: -2;
+}
+
+/* Overlay to lighten the image as requested */
+body::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.85);
+  /* 85% opacity white overlay */
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Font Scaling Infrastructure */
+:root {
+  --tree-font-scale: 1;
+}
+
+.font-scale-sm {
+  --tree-font-scale: 0.9;
+}
+
+.font-scale-md {
+  --tree-font-scale: 1;
+}
+
+.font-scale-lg {
+  --tree-font-scale: 1.15;
+}
+
+body {
+  font-size: calc(1rem * var(--tree-font-scale));
+}
+
+/* Rajashahi Theme (Royal Indian) */
+.rajashahi {
+  background-color: #fff9f0 !important;
+  /* Simplified for performance debugging */
+  background-image: none !important; 
+  /* background-image:
+    radial-gradient(circle at 100% 150%, #fff9f0 24%, #f7e6cc 25%, #f7e6cc 28%, #fff9f0 29%, #fff9f0 36%, #f7e6cc 36%, #f7e6cc 40%, transparent 40%),
+    radial-gradient(circle at 0 150%, #fff9f0 24%, #f7e6cc 25%, #f7e6cc 28%, #fff9f0 29%, #fff9f0 36%, #f7e6cc 36%, #f7e6cc 40%, transparent 40%),
+    radial-gradient(circle at 50% 100%, #f7e6cc 10%, #fff9f0 11%, #fff9f0 23%, #f7e6cc 24%, #f7e6cc 30%, #fff9f0 31%, #fff9f0 43%, #f7e6cc 44%, #f7e6cc 50%, #fff9f0 51%, #fff9f0 63%, #f7e6cc 64%, #f7e6cc 71%, transparent 71%),
+    radial-gradient(circle at 100% 50%, #f7e6cc 5%, #fff9f0 6%, #fff9f0 15%, #f7e6cc 16%, #f7e6cc 20%, #fff9f0 21%, #fff9f0 30%, #f7e6cc 31%, #f7e6cc 35%, #fff9f0 36%, #fff9f0 45%, #f7e6cc 46%, #f7e6cc 49%, transparent 50%),
+    radial-gradient(circle at 0 50%, #f7e6cc 5%, #fff9f0 6%, #fff9f0 15%, #f7e6cc 16%, #f7e6cc 20%, #fff9f0 21%, #fff9f0 30%, #f7e6cc 31%, #f7e6cc 35%, #fff9f0 36%, #fff9f0 45%, #f7e6cc 46%, #f7e6cc 49%, transparent 50%) !important; */
+  background-size: 100px 50px !important;
+}
+
+/* Ensure the background applies to the body when rajashahi class is present */
+body.rajashahi {
+  background-color: #fff9f0 !important;
+  background-image:
+    radial-gradient(circle at 100% 150%, #fff9f0 24%, #f7e6cc 25%, #f7e6cc 28%, #fff9f0 29%, #fff9f0 36%, #f7e6cc 36%, #f7e6cc 40%, transparent 40%),
+    radial-gradient(circle at 0 150%, #fff9f0 24%, #f7e6cc 25%, #f7e6cc 28%, #fff9f0 29%, #fff9f0 36%, #f7e6cc 36%, #f7e6cc 40%, transparent 40%),
+    radial-gradient(circle at 50% 100%, #f7e6cc 10%, #fff9f0 11%, #fff9f0 23%, #f7e6cc 24%, #f7e6cc 30%, #fff9f0 31%, #fff9f0 43%, #f7e6cc 44%, #f7e6cc 50%, #fff9f0 51%, #fff9f0 63%, #f7e6cc 64%, #f7e6cc 71%, transparent 71%),
+    radial-gradient(circle at 100% 50%, #f7e6cc 5%, #fff9f0 6%, #fff9f0 15%, #f7e6cc 16%, #f7e6cc 20%, #fff9f0 21%, #fff9f0 30%, #f7e6cc 31%, #f7e6cc 35%, #fff9f0 36%, #fff9f0 45%, #f7e6cc 46%, #f7e6cc 49%, transparent 50%),
+    radial-gradient(circle at 0 50%, #f7e6cc 5%, #fff9f0 6%, #fff9f0 15%, #f7e6cc 16%, #f7e6cc 20%, #fff9f0 21%, #fff9f0 30%, #f7e6cc 31%, #f7e6cc 35%, #fff9f0 36%, #fff9f0 45%, #f7e6cc 46%, #f7e6cc 49%, transparent 50%) !important;
+}
+
+.rajashahi .react-flow__node-familyNode {
+  box-shadow: 0 10px 25px -5px rgba(128, 0, 0, 0.2), 0 8px 10px -6px rgba(128, 0, 0, 0.2) !important;
+}
+
+.rajashahi .react-flow__edge-path {
+  stroke: #800000 !important;
+  /* Maroon for branches in Rajashahi theme */
+}
+
+.rajashahi .react-flow__controls button,
+.rajashahi .theme-control-btn,
+.rajashahi .font-control-btn {
+  background-color: #800000 !important;
+  color: #ffd700 !important;
+  border-color: #ffd700 !important;
+}
+
+.rajashahi .header-btn-primary {
+  background-color: #800000 !important;
+  color: white !important;
+  border-color: #ffd700 !important;
+}
+
+.rajashahi .header-btn-secondary {
+  background-color: white !important;
+  color: #800000 !important;
+  border-color: #800000 !important;
+}
+
+/* Print Optimization */
+@media print {
+
+  .no-print,
+  nav,
+  aside,
+  .react-flow__controls,
+  .react-flow__panel,
+  .react-flow__attribution {
+    display: none !important;
+  }
+
+  body,
+  html {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+  }
+
+  .react-flow {
+    background: white !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+  }
+
+  .react-flow__node {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
