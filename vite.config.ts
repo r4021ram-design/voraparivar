@@ -7,21 +7,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
-              return 'vendor-react';
-            }
-            if (id.includes('reactflow') || id.includes('d3') || id.includes('dagre')) {
-              return 'vendor-flow';
-            }
-            if (id.includes('lucide-react') || id.includes('html-to-image')) {
-              return 'vendor-ui';
-            }
-            if (id.includes('supabase')) {
-              return 'vendor-supabase';
-            }
-            return 'vendor';
-          }
           if (id.includes('vanshavali_edited.json')) {
             return 'family-data';
           }
