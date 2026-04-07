@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Upload } from 'lucide-react';
 import type { Person } from '../types';
+import { validatePerson } from '../utils/validateTree';
 
 interface FileUploadProps {
     onDataLoaded: (data: Person) => void;
@@ -18,11 +19,20 @@ const FileUpload = ({ onDataLoaded }: FileUploadProps) => {
             try {
                 const json = JSON.parse(e.target?.result as string);
                 // Check if it matches the structure "tree: { ... }"
+                let dataToLoad: any = null;
                 if (json.tree) {
-                    onDataLoaded(json.tree);
+                    dataToLoad = json.tree;
                 } else if (json.id && json.name) {
-                    // Maybe they uploaded just the person object
-                    onDataLoaded(json as Person);
+                    dataToLoad = json;
+                }
+
+                if (dataToLoad) {
+                    const validation = validatePerson(dataToLoad);
+                    if (validation.valid) {
+                        onDataLoaded(dataToLoad as Person);
+                    } else {
+                        alert(`JSON validation failed:\n${validation.errors.slice(0, 5).join('\n')}${validation.errors.length > 5 ? '\n...' : ''}`);
+                    }
                 } else {
                     alert("Invalid JSON format. Expected root object 'tree' or a Person node.");
                 }
@@ -42,6 +52,8 @@ const FileUpload = ({ onDataLoaded }: FileUploadProps) => {
                 onChange={handleFileUpload}
                 accept=".json"
                 className="hidden"
+                aria-label="Upload Family Tree JSON"
+                title="Upload JSON"
             />
             <button
                 onClick={() => fileInputRef.current?.click()}

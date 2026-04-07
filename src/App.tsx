@@ -217,10 +217,14 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     });
   }, []);
 
-  const handleAddParent = useCallback(() => {
+  const handleAddParent = useCallback(async () => {
+    const newRootId = crypto.randomUUID();
+    const oldRootId = currentData.id;
+
+    // 1. Optimistic update
     setCurrentData((prevData) => {
       const newRoot: Person = {
-        id: `p${Date.now()}`,
+        id: newRootId,
         name: 'New Ancestor',
         generation: 1,
         gender: 'MALE',
@@ -235,7 +239,33 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
       setTimeout(() => refreshLayoutRef.current(newRoot), 0);
       return newRoot;
     });
-  }, []);
+
+    // 2. DB update
+    try {
+        const { error: insertError } = await supabase.from('people').insert({
+          id: newRootId,
+          parent_id: null,
+          name: 'New Ancestor',
+          gender: 'MALE',
+          generation: 1,
+        });
+        if (insertError) throw insertError;
+
+        // Update old root's parent_id to point to the new ancestor 
+        // Note: we don't shift all generations in DB yet, usually better to calculate generations on read from root.
+        if (oldRootId !== 'root') { 
+             const { error: updateError } = await supabase.from('people')
+                .update({ parent_id: newRootId })
+                .eq('id', oldRootId);
+             if (updateError) throw updateError;
+        }
+        
+        refreshDb();
+    } catch (e) {
+        console.error("Failed to sync new parent to DB:", e);
+        alert("Failed to save new ancestor to database.");
+    }
+  }, [currentData.id, refreshDb]);
 
   const refreshLayout = useCallback((data: Person) => {
     const { nodes: initialNodes, edges: initialEdgesRaw } = processTreeToElements(data);

@@ -4,7 +4,10 @@ create extension if not exists "uuid-ossp";
 -- Create people table
 create table public.people (
   id uuid primary key default uuid_generate_v4(),
-  parent_id uuid references public.people(id),
+  parent_id uuid references public.people(id) on delete cascade,
+  -- Note: If updating an existing database, run this in SQL Editor:
+  -- ALTER TABLE public.people DROP CONSTRAINT people_parent_id_fkey;
+  -- ALTER TABLE public.people ADD CONSTRAINT people_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.people(id) ON DELETE CASCADE;
   name text not null,
   gender text check (gender in ('MALE', 'FEMALE')),
   relation text,

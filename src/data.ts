@@ -1,4 +1,5 @@
 import type { Person } from './types';
+import { validatePerson } from './utils/validateTree';
 
 const addGenerations = (node: any, gen: number): Person => {
     return {
@@ -26,5 +27,12 @@ export async function loadFamilyTreeData(): Promise<Person> {
     if (!res.ok) throw new Error(`Failed to load family data: ${res.status}`);
     const json = await res.json();
     const rawData = json.tree || json;
+    
+    // Validate the tree structure
+    const validation = validatePerson(rawData);
+    if (!validation.valid) {
+        throw new Error(`Data validation failed:\n${validation.errors.join('\n')}`);
+    }
+    
     return addGenerations(rawData, 1);
 }
