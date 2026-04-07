@@ -7,7 +7,7 @@ import DetailsTooltip from './DetailsTooltip';
 import { translations, getTranslatedContent } from '../i18n';
 
 const FamilyNode = ({ data, isConnectable }: any) => {
-    const { person, onEdit, onDelete, language = 'EN', theme, fontScale, onAddChild, onToggleExpand, onAddParent } = data;
+    const { person, onEdit, onDelete, language = 'EN', theme, fontScale, onAddChild, onToggleExpand, onAddParent, isHighlighted, isPrivacyMode } = data;
     const t = translations[language as Language];
 
     const [isHovered, setIsHovered] = useState(false);
@@ -20,6 +20,7 @@ const FamilyNode = ({ data, isConnectable }: any) => {
         <div
             className={clsx(
                 "relative group transition-all duration-300 rounded-2xl border-2 overflow-hidden shadow-xl",
+                isHighlighted && "ring-4 ring-yellow-400 dark:ring-yellow-500 scale-105 shadow-2xl z-50",
                 theme === 'rajashahi' ? "border-[#ffd700] shadow-[0_0_20px_rgba(255,215,0,0.3)] bg-[#fff9f0]" :
                     person.generation === 1 ? "border-amber-600" :
                         person.generation === 2 ? "border-orange-500" :
@@ -256,6 +257,7 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                     language={language}
                     theme={theme}
                     fontScale={fontScale}
+                    isPrivacyMode={isPrivacyMode}
                 />
             )}
         </div>

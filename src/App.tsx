@@ -14,7 +14,7 @@ import {
   Settings,
   X,
   Menu,
-  Calendar, Moon, Sun, Maximize, Palette, Printer, Users, CloudUpload
+  Calendar, Moon, Sun, Maximize, Palette, Printer, Users, CloudUpload, Eye, EyeOff
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -27,6 +27,7 @@ import { toPng } from 'html-to-image';
 import SearchSidebar from './components/SearchSidebar';
 import TimelineView from './components/TimelineView';
 import CommunityDashboard from './components/CommunityDashboard';
+import Breadcrumbs from './components/Breadcrumbs';
 import { translations, type Language } from './i18n';
 import { loadFamilyTreeData, EMPTY_ROOT } from './data';
 import { processTreeToElements } from './utils/layout';
@@ -61,6 +62,8 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const [language, setLanguage] = useState<Language>('EN');
   const [theme, setTheme] = useState<'light' | 'dark' | 'rajashahi'>('light');
   const [fontScale, setFontScale] = useState<'sm' | 'md' | 'lg'>('md');
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isPrivacyMode, setIsPrivacyMode] = useState(false);
 
   // Header Content State
   const [headerVerse, setHeaderVerse] = useState(() =>
@@ -290,7 +293,8 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
         onAddParent: isAdmin ? handleAddParent : undefined,
         language,
         theme,
-        fontScale
+        fontScale,
+        isPrivacyMode
       }
     }));
 
@@ -300,7 +304,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     window.requestAnimationFrame(() => {
       fitView({ duration: 800, padding: 0.2 });
     });
-  }, [setNodes, setEdges, user.role, handleAddChild, handleDelete, fitView, language, edgeColor, edgeWidth, theme, fontScale]);
+  }, [setNodes, setEdges, user.role, handleAddChild, handleDelete, fitView, language, edgeColor, edgeWidth, theme, fontScale, isPrivacyMode]);
 
   useEffect(() => {
     refreshLayoutRef.current = refreshLayout;
@@ -375,6 +379,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   };
 
   const handleFocusNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
     fitView({
       nodes: [{ id: nodeId }],
       duration: 1000,
@@ -382,10 +387,23 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
       maxZoom: 1.2,
       padding: 0.5
     });
+
+    setNodes(nds => nds.map(n => ({
+      ...n,
+      data: { ...n.data, isHighlighted: n.id === nodeId }
+    })));
+
+    setTimeout(() => {
+      setNodes(nds => nds.map(n => ({
+        ...n,
+        data: { ...n.data, isHighlighted: false }
+      })));
+    }, 2000);
+
     if (window.innerWidth < 640) {
       setIsSearchOpen(false);
     }
-  }, [fitView]);
+  }, [fitView, setNodes]);
 
   const handleExportImage = useCallback(() => {
     const flowElement = document.querySelector('.react-flow') as HTMLElement;
@@ -405,6 +423,47 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
         link.download = `family-tree-${new Date().toISOString().split('T')[0]}.png`;
         link.href = dataUrl;
         link.click();
+      })
+      .finally(() => {
+        if (controls) controls.style.display = 'flex';
+      });
+  }, [theme]);
+
+  const handleExportPDF = useCallback(() => {
+    const flowElement = document.querySelector('.react-flow') as HTMLElement;
+    if (!flowElement) return;
+
+    // Hide UI elements during export
+    const controls = document.querySelector('.react-flow__controls') as HTMLElement;
+    if (controls) controls.style.display = 'none';
+
+    toPng(flowElement, {
+      backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
+      quality: 1,
+      pixelRatio: 2,
+    })
+      .then(async (dataUrl) => {
+        // Dynamic import to keep bundle small
+        const { jsPDF } = await import('jspdf');
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4'
+        });
+        
+        const imgProps = pdf.getImageProperties(dataUrl);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        // Vertically center if image is shorter than A4 landscape height
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const yPos = pdfHeight < pageHeight ? (pageHeight - pdfHeight) / 2 : 0;
+        
+        pdf.addImage(dataUrl, 'PNG', 0, yPos, pdfWidth, pdfHeight);
+        pdf.save(`vanshavali-A4-${new Date().toISOString().split('T')[0]}.pdf`);
+      })
+      .catch((err) => {
+         console.error('Oops, something went wrong!', err);
       })
       .finally(() => {
         if (controls) controls.style.display = 'flex';
@@ -619,6 +678,15 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                   </button>
                   <div className="w-full h-px bg-gray-300 dark:bg-slate-600 my-0.5"></div>
                   <button
+                    onClick={handleExportPDF}
+                    className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
+                    title="Export as PDF"
+                  >
+                    <Download size={14} className="text-red-500" />
+                    PDF
+                  </button>
+                  <div className="w-full h-px bg-gray-300 dark:bg-slate-600 my-0.5"></div>
+                  <button
                     onClick={handlePrint}
                     className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
                     title={t.printTree}
@@ -638,6 +706,9 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                   </button>
                   <button onClick={() => setTheme('rajashahi')} title="Royal Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", theme === 'rajashahi' ? "bg-orange-600 text-white" : "hover:bg-orange-50 text-orange-600")}>
                     <Palette size={14} />
+                  </button>
+                  <button onClick={() => setIsPrivacyMode(!isPrivacyMode)} title={isPrivacyMode ? "Disable Privacy Mode" : "Enable Privacy Mode"} className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", isPrivacyMode ? "bg-red-500 text-white" : "hover:bg-red-50 text-red-500")}>
+                    {isPrivacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
 
@@ -689,11 +760,20 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           </div>
         </div>
 
+        <Breadcrumbs
+            currentNodeId={selectedNodeId}
+            treeData={currentData}
+            onNavigate={handleFocusNode}
+            language={language}
+        />
+
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+          onPaneClick={() => setSelectedNodeId(null)}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView

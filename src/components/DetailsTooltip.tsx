@@ -8,6 +8,7 @@ interface DetailsTooltipProps {
     language: Language;
     theme: 'light' | 'dark' | 'rajashahi';
     fontScale: 'sm' | 'md' | 'lg';
+    isPrivacyMode?: boolean;
 }
 
 const DetailRow = ({ icon: Icon, label, value }: { icon: any, label: string, value?: string }) => {
@@ -21,11 +22,26 @@ const DetailRow = ({ icon: Icon, label, value }: { icon: any, label: string, val
     );
 };
 
-const DetailsTooltip = ({ person, language, theme, fontScale }: DetailsTooltipProps) => {
+const DetailsTooltip = ({ person, language, theme, fontScale, isPrivacyMode }: DetailsTooltipProps) => {
     const t = translations[language];
 
     // Translation helper for content
     const translateContent = (text?: string) => getTranslatedContent(text, language);
+
+    const maskPhone = (phone?: string) => {
+        if (!phone) return undefined;
+        if (!isPrivacyMode) return phone;
+        return phone.length > 4 ? `******${phone.slice(-4)}` : '***';
+    };
+
+    const maskDate = (date?: string) => {
+        if (!date) return undefined;
+        if (!isPrivacyMode) return date;
+        // Assume format YYYY-MM-DD, extract YYYY. If not, just return '•••'
+        const parts = date.split('-');
+        if (parts.length > 0 && parts[0].length === 4) return `**-**-${parts[0]}`;
+        return `**-**-****`;
+    };
 
     return (
         <div className={clsx(
@@ -84,11 +100,11 @@ const DetailsTooltip = ({ person, language, theme, fontScale }: DetailsTooltipPr
                         </div>
 
                         <div className="space-y-1">
-                            <DetailRow icon={Calendar} label={t.birth} value={person.dateOfBirth} />
+                            <DetailRow icon={Calendar} label={t.birth} value={maskDate(person.dateOfBirth)} />
                             <DetailRow icon={Calendar} label={t.death} value={person.dateOfDeath} />
                             <DetailRow icon={Briefcase} label={t.occupation} value={translateContent(person.occupation)} />
-                            <DetailRow icon={Phone} label={t.phone} value={person.phoneNumber} />
-                            {person.location?.name && (
+                            <DetailRow icon={Phone} label={t.phone} value={maskPhone(person.phoneNumber)} />
+                            {person.location?.name && !isPrivacyMode && (
                                 <div className="flex items-center gap-2 mt-2 group/loc">
                                     <MapPin size={14} className="text-blue-500" />
                                     <a
@@ -160,10 +176,10 @@ const DetailsTooltip = ({ person, language, theme, fontScale }: DetailsTooltipPr
                             <div className="flex-1">
                                 <div className="font-bold text-gray-900 dark:text-gray-100 text-sm mb-1">{translateContent(person.spouse)}</div>
                                 <div className="space-y-1">
-                                    <DetailRow icon={Calendar} label={t.birth} value={person.spouseDateOfBirth} />
+                                    <DetailRow icon={Calendar} label={t.birth} value={maskDate(person.spouseDateOfBirth)} />
                                     <DetailRow icon={Calendar} label={t.death} value={person.spouseDateOfDeath} />
                                     <DetailRow icon={Briefcase} label={t.occupation} value={translateContent(person.spouseOccupation)} />
-                                    <DetailRow icon={Phone} label={t.phone} value={person.spousePhoneNumber} />
+                                    <DetailRow icon={Phone} label={t.phone} value={maskPhone(person.spousePhoneNumber)} />
                                 </div>
                             </div>
                         </div>

@@ -52,6 +52,8 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
                 </h2>
                 <button
                     onClick={onClose}
+                    title="Close"
+                    aria-label="Close search"
                     className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors text-gray-500 dark:text-gray-400"
                 >
                     <X size={20} />
@@ -107,6 +109,8 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
                                 value={filterGenRange.min}
                                 onChange={(e) => setFilterGenRange(prev => ({ ...prev, min: Math.min(parseInt(e.target.value), prev.max) }))}
                                 className="w-full h-1.5 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                aria-label="Minimum generation"
+                                title="Min Gen"
                             />
                         </div>
                         <div className="flex-1 space-y-1">
@@ -118,6 +122,8 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
                                 value={filterGenRange.max}
                                 onChange={(e) => setFilterGenRange(prev => ({ ...prev, max: Math.max(parseInt(e.target.value), prev.min) }))}
                                 className="w-full h-1.5 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                aria-label="Maximum generation"
+                                title="Max Gen"
                             />
                         </div>
                     </div>
@@ -162,7 +168,16 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h3 className="font-bold text-gray-800 dark:text-gray-200 rajashahi:text-[#800000] text-sm truncate group-hover:text-blue-700 dark:group-hover:text-blue-400">
-                                            {person.name}
+                                            {searchQuery ? (
+                                                <span dangerouslySetInnerHTML={{
+                                                    __html: person.name.replace(
+                                                        new RegExp(`(${searchQuery})`, 'gi'), 
+                                                        '<mark class="bg-yellow-200 text-gray-900 rounded-sm px-0.5">$1</mark>'
+                                                    )
+                                                }} />
+                                            ) : (
+                                                person.name
+                                            )}
                                         </h3>
                                         <div className="flex flex-wrap gap-x-2 gap-y-1 mt-0.5">
                                             <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 rajashahi:text-amber-800">
