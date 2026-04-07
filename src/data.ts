@@ -3,7 +3,7 @@ import type { Person } from './types';
 const addGenerations = (node: any, gen: number): Person => {
     return {
         ...node,
-        generation: node.generation || gen,
+        generation: node.generation != null ? node.generation : gen,
         children: (node.children || []).map((child: any) => addGenerations(child, gen + 1))
     };
 };

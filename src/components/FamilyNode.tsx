@@ -88,10 +88,10 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm(`${t.delete}? ${person.name}`)) {
-                                    onDelete(person.id);
-                                }
+                                onDelete(person.id);
                             }}
+                            title="Delete"
+                            aria-label="Delete person"
                             className="p-1 rounded-full text-white/70 hover:text-white hover:bg-black/10 transition-colors"
                         >
                             <Trash2 size={14} />
@@ -103,6 +103,8 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                                 e.stopPropagation();
                                 onEdit(person);
                             }}
+                            title="Edit"
+                            aria-label="Edit person"
                             className="bg-white/20 p-1 rounded hover:bg-white/40 transition-colors"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>

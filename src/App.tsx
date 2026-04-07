@@ -101,11 +101,13 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
 
   const handleAddChild = useCallback(async (parentId: string, type: 'son' | 'daughter') => {
     // 1. Optimistic Update
-    const newChildId = crypto.randomUUID(); // Generate UUID for DB
+    const newChildId = crypto.randomUUID();
     const isMale = type === 'son';
+    let parentGeneration = 1; // Will be captured during tree traversal
 
     const addChildRecursive = (root: Person): Person => {
       if (root.id === parentId) {
+        parentGeneration = root.generation; // Capture parent's generation for DB insert
         const newChild: Person = {
           id: newChildId,
           name: `New ${type === 'son' ? 'Son' : 'Daughter'}`,
@@ -128,7 +130,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
       return newData;
     });
 
-    // 2. DB Insert
+    // 2. DB Insert — use captured parentGeneration
     try {
       const { error } = await supabase.from('people').insert({
         id: newChildId,
@@ -136,13 +138,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
         name: `New ${type === 'son' ? 'Son' : 'Daughter'}`,
         gender: isMale ? 'MALE' : 'FEMALE',
         relation: type === 'son' ? 'Son' : 'Daughter',
-        generation: 0, // Logic needed to get parent gen + 1. For now simple.
-        // generation: root.generation + 1 // We need access to parent's gen. 
-        // Simplified: The backend or reload will fix gen if we are not careful.
-        // Use local state knowledge?
+        generation: parentGeneration + 1,
       });
       if (error) throw error;
-      refreshDb(); // Sync
+      refreshDb();
     } catch (e) {
       console.error("Error adding child to DB:", e);
       alert("Failed to save new child to database.");
@@ -277,11 +276,13 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     refreshLayoutRef.current = refreshLayout;
   }, [refreshLayout]);
 
-  const handleSaveEdit = async (updatedPerson: Person) => {
-    // 1. Optimistic UI Update
-    const newData = updatePersonInTree(currentData, updatedPerson);
-    setCurrentData(newData);
-    refreshLayout(newData);
+  const handleSaveEdit = useCallback(async (updatedPerson: Person) => {
+    // 1. Optimistic UI Update — use functional updater to avoid stale closure
+    setCurrentData(prev => {
+      const newData = updatePersonInTree(prev, updatedPerson);
+      setTimeout(() => refreshLayoutRef.current(newData), 0);
+      return newData;
+    });
     setEditingPerson(null);
 
     // 2. DB Update
@@ -311,7 +312,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
       console.error("Error updating DB:", e);
       alert("Failed to save changes to database.");
     }
-  };
+  }, [refreshDb]);
 
   const handleDataLoaded = useCallback((data: Person) => {
     try {
@@ -395,18 +396,22 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     setIsEditingHeader(false);
   };
 
+  // Effect 1: Load DB data into state (only when dbData changes)
   useEffect(() => {
     if (dbData) {
       console.log("Loaded data from Supabase");
       setCurrentData(dbData);
-      refreshLayout(dbData);
     } else if (!dbLoading) {
-      // Fallback or empty state
       console.log("No DB data or Error, using default/local fallback.");
-      // Ensure we display whatever is in currentData (which is familyTreeData by default)
+    }
+  }, [dbData, dbLoading]);
+
+  // Effect 2: Re-layout whenever currentData or visual settings change
+  useEffect(() => {
+    if (currentData.name !== 'Loading…') {
       refreshLayout(currentData);
     }
-  }, [dbData, dbLoading, refreshLayout]);
+  }, [currentData, refreshLayout]);
 
   const handleResetFromBackup = useCallback(() => {
     if (confirm("This will clear your recent changes and reload the data from the 'backup' folder. Continue?")) {
