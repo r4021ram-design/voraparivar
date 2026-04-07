@@ -7,13 +7,25 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (id.includes('vanshavali_edited.json')) {
-            return 'family-data';
+          // ReactFlow + dagre (graph rendering engine)
+          if (id.includes('reactflow') || id.includes('dagre') || id.includes('@reactflow')) {
+            return 'vendor-reactflow';
+          }
+          // Supabase client
+          if (id.includes('@supabase')) {
+            return 'vendor-supabase';
+          }
+          // Icon library
+          if (id.includes('lucide-react')) {
+            return 'vendor-icons';
+          }
+          // html-to-image (export feature)
+          if (id.includes('html-to-image')) {
+            return 'vendor-export';
           }
         },
       },
     },
-    chunkSizeWarningLimit: 1000,
   },
   plugins: [react()],
 })

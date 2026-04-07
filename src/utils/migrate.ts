@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Person } from '../types';
-import { familyTreeData } from '../data';
+import { loadFamilyTreeData } from '../data';
 
 export const migrateDataToSupabase = async () => {
     console.log("Starting migration...");
@@ -26,7 +26,7 @@ export const migrateDataToSupabase = async () => {
 
     // 1. Get data from LocalStorage or Fallback
     const localData = localStorage.getItem('vanshavali_data_v3');
-    const rootNode: Person = localData ? JSON.parse(localData) : familyTreeData;
+    const rootNode: Person = localData ? JSON.parse(localData) : await loadFamilyTreeData();
 
     if (!rootNode) {
         console.error("No data found to migrate.");

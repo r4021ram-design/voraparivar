@@ -1,7 +1,4 @@
 import type { Person } from './types';
-import backupData from '../backup/vanshavali_edited.json';
-
-const rawData: any = (backupData as any).tree || backupData;
 
 const addGenerations = (node: any, gen: number): Person => {
     return {
@@ -11,4 +8,23 @@ const addGenerations = (node: any, gen: number): Person => {
     };
 };
 
-export const familyTreeData: Person = addGenerations(rawData, 1);
+// Minimal placeholder root used while JSON loads asynchronously
+export const EMPTY_ROOT: Person = {
+    id: 'root',
+    name: 'Loading…',
+    generation: 1,
+    gender: 'MALE',
+    children: [],
+};
+
+/**
+ * Fetch the family-tree JSON at runtime from /public instead of bundling it.
+ * This eliminates the 4 MB chunk from the JS bundle.
+ */
+export async function loadFamilyTreeData(): Promise<Person> {
+    const res = await fetch('/vanshavali_edited.json');
+    if (!res.ok) throw new Error(`Failed to load family data: ${res.status}`);
+    const json = await res.json();
+    const rawData = json.tree || json;
+    return addGenerations(rawData, 1);
+}

@@ -28,7 +28,7 @@ import SearchSidebar from './components/SearchSidebar';
 import TimelineView from './components/TimelineView';
 import CommunityDashboard from './components/CommunityDashboard';
 import { translations, type Language } from './i18n';
-import { familyTreeData } from './data';
+import { loadFamilyTreeData, EMPTY_ROOT } from './data';
 import { processTreeToElements } from './utils/layout';
 import type { Person } from './types';
 import { useSupabaseTree } from './hooks/useSupabaseTree'; // [NEW]
@@ -53,7 +53,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   const { data: dbData, loading: dbLoading, refresh: refreshDb } = useSupabaseTree(); // [NEW]
-  const [currentData, setCurrentData] = useState<Person>(familyTreeData);
+  const [currentData, setCurrentData] = useState<Person>(EMPTY_ROOT);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
@@ -323,11 +323,12 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     refreshLayout(data);
   }, [refreshLayout]);
 
-  const handleReset = useCallback(() => {
+  const handleReset = useCallback(async () => {
     if (confirm("Are you sure you want to reset all data to default? This cannot be undone.")) {
       localStorage.removeItem('vanshavali_data_v3');
-      setCurrentData(familyTreeData);
-      refreshLayout(familyTreeData);
+      const defaultData = await loadFamilyTreeData();
+      setCurrentData(defaultData);
+      refreshLayout(defaultData);
     }
   }, [refreshLayout]);
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Person } from '../types';
-import { familyTreeData } from '../data';
+import { loadFamilyTreeData } from '../data';
 
 export const useSupabaseTree = () => {
     const [data, setData] = useState<Person | null>(null);
@@ -22,7 +22,7 @@ export const useSupabaseTree = () => {
                 // Check local storage or default
                 const local = localStorage.getItem('vanshavali_data_v3');
                 if (local) setData(JSON.parse(local));
-                else setData(familyTreeData);
+                else setData(await loadFamilyTreeData());
                 return;
             }
 
