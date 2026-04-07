@@ -85,6 +85,17 @@ export const useSupabaseTree = () => {
         } catch (err: any) {
             console.error("Error fetching tree:", err);
             setError(err.message);
+            // Fallback: load from localStorage or JSON file when Supabase fails
+            try {
+                const local = localStorage.getItem('vanshavali_data_v3');
+                if (local) {
+                    setData(JSON.parse(local));
+                } else {
+                    setData(await loadFamilyTreeData());
+                }
+            } catch (fallbackErr) {
+                console.error("Fallback also failed:", fallbackErr);
+            }
         } finally {
             setLoading(false);
         }
