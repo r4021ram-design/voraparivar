@@ -1034,27 +1034,69 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
 
 export default function App() {
   const [user, setUser] = useState<UserData | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    const session = localStorage.getItem('vanshavali_user');
-    if (session) {
-      try {
-        setUser(JSON.parse(session));
-      } catch (e) {
-        localStorage.removeItem('vanshavali_user');
+    // 1. Check active session on mount
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        await loadUserRole(session.user);
+      } else {
+        setAuthLoading(false);
       }
-    }
+    });
+
+    // 2. Listen for auth changes (login/logout/token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        await loadUserRole(session.user);
+      } else {
+        setUser(null);
+        setAuthLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const loadUserRole = async (authUser: any) => {
+    try {
+      const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', authUser.id)
+          .single();
+      
+      // We typecast, but assume it's one of the UserRole strings
+      setUser({
+        email: authUser.email,
+        role: (profile?.role as any) || 'VIEW_ONLY'
+      });
+    } catch (e) {
+      console.error("Failed to load user role:", e);
+      setUser({ email: authUser.email, role: 'VIEW_ONLY' });
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   const handleLogin = (userData: UserData) => {
     setUser(userData);
-    localStorage.setItem('vanshavali_user', JSON.stringify(userData));
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('vanshavali_user');
   };
+
+  if (authLoading) {
+      return (
+          <div className="h-screen w-full flex flex-col gap-4 items-center justify-center bg-gray-50 dark:bg-slate-900">
+              <div className="w-8 h-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+              <p className="text-gray-500 dark:text-gray-400 font-bold animate-pulse text-sm">Authenticating...</p>
+          </div>
+      );
+  }
 
   return (
     <ReactFlowProvider>
