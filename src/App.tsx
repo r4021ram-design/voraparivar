@@ -14,7 +14,7 @@ import {
   Settings,
   X,
   Menu,
-  Calendar, Moon, Sun, Maximize, Palette, Printer, Users, CloudUpload, Eye, EyeOff
+  Calendar, Moon, Sun, Maximize, Palette, Printer, Users, CloudUpload, Eye, EyeOff, Undo, Redo
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -35,6 +35,8 @@ import type { Person } from './types';
 import { useSupabaseTree } from './hooks/useSupabaseTree'; // [NEW]
 import { supabase } from './lib/supabase'; // [NEW]
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { useHistory } from './hooks/useHistory';
+import { bulkSyncTreeToDb } from './utils/dbSync';
 
 const nodeTypes = {
   familyNode: FamilyNode,
@@ -64,6 +66,8 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const [fontScale, setFontScale] = useState<'sm' | 'md' | 'lg'>('md');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isPrivacyMode, setIsPrivacyMode] = useState(false);
+  
+  const { pushState, undo, redo, canUndo, canRedo, resetHistory } = useHistory(null);
 
   // Header Content State
   const [headerVerse, setHeaderVerse] = useState(() =>
@@ -129,7 +133,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
 
     setCurrentData((prevData) => {
       const newData = addChildRecursive(prevData);
-      setTimeout(() => refreshLayoutRef.current(newData), 0);
+      setTimeout(() => {
+        pushState(newData);
+        refreshLayoutRef.current(newData);
+      }, 0);
       return newData;
     });
 
@@ -174,7 +181,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     setCurrentData((prevData) => {
       const newData = deleteRecursive(prevData);
       if (!newData) return prevData;
-      setTimeout(() => refreshLayoutRef.current(newData), 0);
+      setTimeout(() => {
+        pushState(newData);
+        refreshLayoutRef.current(newData);
+      }, 0);
       return newData;
     });
 
@@ -239,7 +249,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
       } catch (e) {
         console.error("Failed to save", e);
       }
-      setTimeout(() => refreshLayoutRef.current(newRoot), 0);
+      setTimeout(() => {
+        pushState(newRoot);
+        refreshLayoutRef.current(newRoot);
+      }, 0);
       return newRoot;
     });
 
@@ -311,10 +324,12 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   }, [refreshLayout]);
 
   const handleSaveEdit = useCallback(async (updatedPerson: Person) => {
-    // 1. Optimistic UI Update — use functional updater to avoid stale closure
     setCurrentData(prev => {
       const newData = updatePersonInTree(prev, updatedPerson);
-      setTimeout(() => refreshLayoutRef.current(newData), 0);
+      setTimeout(() => {
+        pushState(newData);
+        refreshLayoutRef.current(newData);
+      }, 0);
       return newData;
     });
     setEditingPerson(null);
@@ -485,15 +500,62 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     setIsEditingHeader(false);
   };
 
-  // Effect 1: Load DB data into state (only when dbData changes)
   useEffect(() => {
     if (dbData) {
       console.log("Loaded data from Supabase");
       setCurrentData(dbData);
+      resetHistory(dbData);
     } else if (!dbLoading) {
       console.log("No DB data or Error, using default/local fallback.");
     }
-  }, [dbData, dbLoading]);
+  }, [dbData, dbLoading, resetHistory]);
+
+  const handleUndo = useCallback(async () => {
+    if (!canUndo) return;
+    const previousState = undo();
+    if (previousState) {
+      setCurrentData(previousState);
+      refreshLayoutRef.current(previousState);
+      if (user.role === 'ADMIN') {
+        const success = await bulkSyncTreeToDb(previousState);
+        if (success) refreshDb();
+      }
+    }
+  }, [canUndo, undo, user.role, refreshDb]);
+
+  const handleRedo = useCallback(async () => {
+    if (!canRedo) return;
+    const nextState = redo();
+    if (nextState) {
+      setCurrentData(nextState);
+      refreshLayoutRef.current(nextState);
+      if (user.role === 'ADMIN') {
+        const success = await bulkSyncTreeToDb(nextState);
+        if (success) refreshDb();
+      }
+    }
+  }, [canRedo, redo, user.role, refreshDb]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+            handleRedo();
+        } else {
+            handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
   // Effect 2: Re-layout whenever currentData or visual settings change
   useEffect(() => {
@@ -666,6 +728,37 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                   <Maximize size={16} />
                   <span className="text-[11px] font-bold">Focus</span>
                 </button>
+
+                {/* History Options */}
+                {user.role === 'ADMIN' && (
+                <div className="flex bg-gray-100 dark:bg-slate-800 rounded-xl p-1 border border-gray-200 dark:border-slate-700 w-full overflow-hidden">
+                  <button
+                    onClick={handleUndo}
+                    disabled={!canUndo}
+                    aria-label="Undo"
+                    title="Undo (Ctrl+Z)"
+                    className={clsx(
+                        "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-l-lg transition-all",
+                        canUndo ? "hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200" : "opacity-30 cursor-not-allowed text-gray-500"
+                    )}
+                  >
+                    <Undo size={14} />
+                  </button>
+                  <div className="w-px h-full bg-gray-300 dark:bg-slate-600 mx-0.5"></div>
+                  <button
+                    onClick={handleRedo}
+                    disabled={!canRedo}
+                    aria-label="Redo"
+                    title="Redo (Ctrl+Y)"
+                    className={clsx(
+                        "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-r-lg transition-all",
+                        canRedo ? "hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200" : "opacity-30 cursor-not-allowed text-gray-500"
+                    )}
+                  >
+                    <Redo size={14} />
+                  </button>
+                </div>
+                )}
 
                 {/* Image Export & Print */}
                 <div className="flex flex-col bg-gray-100 dark:bg-slate-800 rounded-xl p-1 border border-gray-200 dark:border-slate-700 w-full overflow-hidden">
