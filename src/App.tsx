@@ -674,11 +674,11 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
 
             {/* Center: Cultural Heading (Responsive Scaling) */}
             <div className="flex-1 flex flex-col items-center text-center pointer-events-auto mt-1 sm:mt-2 px-1">
-              <p className="text-[9px] sm:text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 rajashahi:text-amber-800/90 italic leading-tight sm:leading-relaxed max-w-2xl">
+              <p className="hidden sm:block text-[9px] sm:text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 rajashahi:text-amber-800/90 italic leading-tight sm:leading-relaxed max-w-2xl">
                 {headerVerse}
               </p>
               <h1 className="text-lg sm:text-4xl font-black tracking-tighter text-gray-900 dark:text-white rajashahi:text-[#800000] drop-shadow-md mt-1 flex items-center gap-1 sm:gap-2">
-                {headerTitle} <span className="text-blue-600 rajashahi:text-[#ffd700]">|</span>
+                {headerTitle} <span className="hidden sm:inline text-blue-600 rajashahi:text-[#ffd700]">|</span>
               </h1>
             </div>
 
