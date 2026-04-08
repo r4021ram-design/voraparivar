@@ -8,5 +8,4 @@ if (!supabaseUrl || !supabaseKey) {
     console.error("Supabase URL or Anon Key is missing. Check your .env file.");
 }
 
-// Create a single supabase client for interacting with your database
 export const supabase = createClient(supabaseUrl, supabaseKey);

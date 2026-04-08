@@ -1037,17 +1037,28 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Check active session on mount
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        await loadUserRole(session.user);
-      } else {
-        setAuthLoading(false);
+    let isMounted = true;
+
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        
+        if (session?.user) {
+          if (isMounted) await loadUserRole(session.user);
+        } else {
+          if (isMounted) setAuthLoading(false);
+        }
+      } catch (e) {
+        console.error("Auth session check failed:", e);
+        if (isMounted) setAuthLoading(false);
       }
-    });
+    };
+    checkSession();
 
     // 2. Listen for auth changes (login/logout/token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
       if (session?.user) {
         await loadUserRole(session.user);
       } else {
@@ -1056,7 +1067,10 @@ export default function App() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadUserRole = async (authUser: any) => {

@@ -15,7 +15,7 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -26,9 +26,12 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setIsLoading(true);
 
         try {
+            // Append a dummy domain so Supabase handles it as an email under the hood
+            const loginEmail = `${username.trim().toLowerCase()}@family.local`;
+
             // 1. Sign In
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-                email,
+                email: loginEmail,
                 password
             });
 
@@ -46,7 +49,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 const role = (profileData?.role as UserRole) || 'VIEW_ONLY';
                 
                 onLogin({
-                    email: authData.user.email || '',
+                    email: username, // pass the username to the app state
                     role
                 });
             }
@@ -91,11 +94,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                                 <User size={20} className="text-gray-400" />
                             </div>
                             <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                type="text"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
                                 className="w-full pl-11 pr-4 py-3.5 bg-gray-50/50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-gray-900 dark:text-white font-medium"
-                                placeholder="Email Address"
+                                placeholder="Username"
                                 required
                             />
                         </div>
