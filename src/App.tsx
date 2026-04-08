@@ -1039,28 +1039,31 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
 
-    const checkSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        
-        if (session?.user) {
-          if (isMounted) await loadUserRole(session.user);
-        } else {
-          if (isMounted) setAuthLoading(false);
-        }
-      } catch (e) {
-        console.error("Auth session check failed:", e);
+    // Fast synchronous-like session check
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("Auth session check error:", error);
+        if (isMounted) setAuthLoading(false);
+        return;
+      }
+      
+      if (session?.user) {
+        // Fire and forget, DO NOT await to prevent deadlock
+        if (isMounted) loadUserRole(session.user);
+      } else {
         if (isMounted) setAuthLoading(false);
       }
-    };
-    checkSession();
+    }).catch(e => {
+        console.error("Auth throw error:", e);
+        if (isMounted) setAuthLoading(false);
+    });
 
-    // 2. Listen for auth changes (login/logout/token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Listen for auth changes independently
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) return;
       if (session?.user) {
-        await loadUserRole(session.user);
+        // DO NOT use async/await here to avoid blocking Supabase's internal auth event loop
+        loadUserRole(session.user);
       } else {
         setUser(null);
         setAuthLoading(false);
