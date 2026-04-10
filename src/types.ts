@@ -31,6 +31,14 @@ export interface Person {
     
     // Auto-Translations via Gemini
     translations?: {
+        EN?: {
+            name?: string;
+            relation?: string;
+            occupation?: string;
+            bio?: string;
+            spouse?: string;
+            spouseOccupation?: string;
+        };
         HI?: {
             name?: string;
             relation?: string;

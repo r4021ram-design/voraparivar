@@ -30,6 +30,15 @@ export default function TimelineView({ nodes, isOpen, onClose, onFocusNode, lang
 
         nodes.forEach(node => {
             const p = node.data.person as Person;
+            
+            const translateName = (text: string) => {
+                if (p.translations?.[language]?.name) {
+                    return p.translations[language].name;
+                }
+                return getTranslatedContent(text, language);
+            };
+
+            const translatedName = translateName(p.name);
 
             if (p.dateOfBirth) {
                 const year = new Date(p.dateOfBirth).getFullYear();
@@ -37,11 +46,11 @@ export default function TimelineView({ nodes, isOpen, onClose, onFocusNode, lang
                     extracted.push({
                         id: `${p.id}-birth`,
                         personId: p.id,
-                        name: p.name,
+                        name: translatedName,
                         type: 'BIRTH',
                         date: p.dateOfBirth,
                         year,
-                        description: `${t.birth} - ${p.name}`
+                        description: `${t.birth} - ${translatedName}`
                     });
                 }
             }
@@ -52,11 +61,11 @@ export default function TimelineView({ nodes, isOpen, onClose, onFocusNode, lang
                     extracted.push({
                         id: `${p.id}-death`,
                         personId: p.id,
-                        name: p.name,
+                        name: translatedName,
                         type: 'DEATH',
                         date: p.dateOfDeath,
                         year,
-                        description: `${t.death} - ${p.name}`
+                        description: `${t.death} - ${translatedName}`
                     });
                 }
             }
@@ -64,14 +73,15 @@ export default function TimelineView({ nodes, isOpen, onClose, onFocusNode, lang
             if (p.anniversaryDate) {
                 const year = new Date(p.anniversaryDate).getFullYear();
                 if (!isNaN(year)) {
+                    const translatedSpouse = p.spouse ? (p.translations?.[language]?.spouse || getTranslatedContent(p.spouse, language)) : t.spouse;
                     extracted.push({
                         id: `${p.id}-anniversary`,
                         personId: p.id,
-                        name: p.name,
+                        name: translatedName,
                         type: 'ANNIVERSARY',
                         date: p.anniversaryDate,
                         year,
-                        description: `${t.anniversary} - ${p.name} & ${p.spouse || t.spouse}`
+                        description: `${t.anniversary} - ${translatedName} & ${translatedSpouse}`
                     });
                 }
             }

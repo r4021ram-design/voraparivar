@@ -794,34 +794,36 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                 </div>
                 )}
 
-                {/* Image Export & Print */}
-                <div className="flex flex-col bg-gray-100 dark:bg-slate-800 rounded-xl p-1 border border-gray-200 dark:border-slate-700 w-full overflow-hidden">
-                  <button
-                    onClick={handleExportImage}
-                    className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
-                  >
-                    <Download size={14} className="text-blue-600 dark:text-blue-400" />
-                    Img
-                  </button>
-                  <div className="w-full h-px bg-gray-300 dark:bg-slate-600 my-0.5"></div>
-                  <button
-                    onClick={handleExportPDF}
-                    className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
-                    title="Export as PDF"
-                  >
-                    <Download size={14} className="text-red-500" />
-                    PDF
-                  </button>
-                  <div className="w-full h-px bg-gray-300 dark:bg-slate-600 my-0.5"></div>
-                  <button
-                    onClick={handlePrint}
-                    className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
-                    title={t.printTree}
-                  >
-                    <Printer size={14} className="text-gray-500" />
-                    Print
-                  </button>
-                </div>
+                {/* Image Export & Print - Admin Only */}
+                {user.role === 'ADMIN' && (
+                  <div className="flex flex-col bg-gray-100 dark:bg-slate-800 rounded-xl p-1 border border-gray-200 dark:border-slate-700 w-full overflow-hidden">
+                    <button
+                      onClick={handleExportImage}
+                      className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
+                    >
+                      <Download size={14} className="text-blue-600 dark:text-blue-400" />
+                      Img
+                    </button>
+                    <div className="w-full h-px bg-gray-300 dark:bg-slate-600 my-0.5"></div>
+                    <button
+                      onClick={handleExportPDF}
+                      className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
+                      title="Export as PDF"
+                    >
+                      <Download size={14} className="text-red-500" />
+                      PDF
+                    </button>
+                    <div className="w-full h-px bg-gray-300 dark:bg-slate-600 my-0.5"></div>
+                    <button
+                      onClick={handlePrint}
+                      className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
+                      title={t.printTree}
+                    >
+                      <Printer size={14} className="text-gray-500" />
+                      Print
+                    </button>
+                  </div>
+                )}
 
                 {/* Theme Toggle Vertical */}
                 <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 flex flex-col gap-1 w-full">
@@ -1029,7 +1031,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                 {user.role === 'ADMIN' && (
                   <>
                     <FileUpload onDataLoaded={handleDataLoaded} />
-                    <button onClick={() => { handleExport(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 font-bold"><Download size={20} />{t.export}</button>
+                    <button onClick={() => { handleExport(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 font-bold"><Download size={20} />{t.export} (JSON)</button>
+                    <button onClick={() => { handleExportImage(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 font-bold"><Download size={20} />Export Image</button>
+                    <button onClick={() => { handleExportPDF(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-red-600 font-bold"><Download size={20} />Export PDF</button>
+                    <button onClick={() => { handlePrint(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-bold"><Printer size={20} />Print Tree</button>
                     <button onClick={() => { setIsCommunityOpen(true); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-700 p-3 rounded-xl text-white font-bold"><Users size={20} />{t.community}</button>
                     <button onClick={() => { setIsEditingHeader(true); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-purple-600 p-3 rounded-xl text-white font-bold"><Palette size={20} />Header Editor</button>
                     <button onClick={() => { handleReset(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-red-600 font-bold"><RotateCcw size={20} />{t.reset}</button>

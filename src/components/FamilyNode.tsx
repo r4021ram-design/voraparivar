@@ -13,7 +13,7 @@ const FamilyNode = ({ data, isConnectable }: any) => {
 
     // Translation helper for content
     const translateContent = (text?: string, field?: 'name'|'occupation'|'relation'|'spouse') => {
-        if (field && language !== 'EN' && person.translations?.[language]?.[field]) {
+        if (field && person.translations?.[language]?.[field]) {
             return person.translations[language][field];
         }
         return getTranslatedContent(text, language);

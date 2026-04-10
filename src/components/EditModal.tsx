@@ -76,6 +76,7 @@ const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps)
                 setFormData(prev => prev ? {
                     ...prev,
                     translations: {
+                        EN: { ...prev.translations?.EN, ...translated.EN },
                         HI: { ...prev.translations?.HI, ...translated.HI },
                         GU: { ...prev.translations?.GU, ...translated.GU }
                     }

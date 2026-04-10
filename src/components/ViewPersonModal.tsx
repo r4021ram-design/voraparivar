@@ -28,7 +28,7 @@ const ViewPersonModal = ({ person, language, theme, fontScale, isPrivacyMode, on
 
     // Translation helper for content
     const translateContent = (text?: string, field?: 'name'|'occupation'|'relation'|'spouse'|'bio'|'spouseOccupation') => {
-        if (field && language !== 'EN' && person.translations?.[language]?.[field]) {
+        if (field && person.translations?.[language]?.[field]) {
             return person.translations[language][field];
         }
         return getTranslatedContent(text, language);

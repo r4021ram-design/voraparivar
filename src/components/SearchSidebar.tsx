@@ -32,10 +32,12 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
             const person = node.data.person as Person;
 
             const nameMatched = person.name.toLowerCase().includes(q) ||
+                person.translations?.EN?.name?.toLowerCase().includes(q) ||
                 person.translations?.HI?.name?.toLowerCase().includes(q) ||
                 person.translations?.GU?.name?.toLowerCase().includes(q);
 
             const occupationMatched = person.occupation?.toLowerCase().includes(q) ||
+                person.translations?.EN?.occupation?.toLowerCase().includes(q) ||
                 person.translations?.HI?.occupation?.toLowerCase().includes(q) ||
                 person.translations?.GU?.occupation?.toLowerCase().includes(q);
 
@@ -49,7 +51,7 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
     }, [nodes, searchQuery, filterGender, filterGenRange]);
 
     const translatePersonContent = (person: Person, text?: string, field?: 'name'|'occupation') => {
-        if (field && language !== 'EN' && person.translations?.[language]?.[field]) {
+        if (field && person.translations?.[language]?.[field]) {
             return person.translations[language][field];
         }
         return getTranslatedContent(text, language);

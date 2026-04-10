@@ -18,33 +18,33 @@ export const translateWithGemini = async (textsToTranslate: Record<string, strin
 
     const prompt = `
 You are an expert translator specializing in Indian family history, genealogies, and cultural contexts. 
-Your task is to accurately translate the provided JSON object containing personal details (Name, Occupation, Bio, Relation, Spouse) from English into both Hindi (HI) and Gujarati (GU).
+Your task is to provide accurate versions of the provided JSON object in three languages: English (EN), Hindi (HI), and Gujarati (GU).
+
+The input fields may be in any of these three languages. You must figure out the source language and provide the equivalent in all three.
 
 IMPORTANT RULES:
-1. Translate names PHONETICALLY. For example, "Surya" must become "सूर्या" and "સૂર્યા". Do NOT translate names by their meaning (e.g., do not translate Surya into Sun).
-2. Translate Occupations, Bios, and Relations naturally and respectfully. 
-   - E.g. "Teacher" -> "शिक्षक", "શિક્ષક".
-   - Relation: "Son" -> "पुत्र", "પુત્ર"
-3. Return ONLY a pure JSON object in the exact structure below. Do not include markdown tags (\`\`\`json) or any conversational text.
+1. names: You MUST provide a PHONETIC TRANSLITERATION (script conversion) only. 
+   - DO NOT translate by meaning. E.g., "Suraj" -> "सूरत" (HI) / "સૂરજ" (GU) / "Suraj" (EN).
+   - "राम" -> "Ram" (EN) / "राम" (HI) / "રામ" (GU).
+   - "Lord" should NOT be added if not in the input.
+2. occupations, relations, bios: Translate these naturally based on the target language's culture.
+   - E.g. "Teacher" -> "शिक्षक" (HI) / "શિક્ષक" (GU) / "Teacher" (EN).
+   - "Son" -> "पुत्र" (HI) / "પુત્ર" (GU) / "Son" (EN).
+3. Return ONLY a pure JSON object in the exact structure below.
 
-Input JSON to translate:
+Input JSON:
 ${JSON.stringify(payload, null, 2)}
 
 Expected Output Format:
 {
-  "HI": {
-    "key_from_input": "Hindi Translation",
-    ...
-  },
-  "GU": {
-    "key_from_input": "Gujarati Translation",
-    ...
-  }
+  "EN": { "field": "transliterated/translated text", ... },
+  "HI": { "field": "transliterated/translated text", ... },
+  "GU": { "field": "transliterated/translated text", ... }
 }
 `;
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
