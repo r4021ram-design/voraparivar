@@ -1,20 +1,23 @@
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { User, Heart, Trash2, Plus, Minus } from 'lucide-react';
 import clsx from 'clsx';
-import type { Language } from '../i18n'; // Keep this for cast
-import DetailsTooltip from './DetailsTooltip';
+import type { Language } from '../i18n';
 import { translations, getTranslatedContent } from '../i18n';
 
 const FamilyNode = ({ data, isConnectable }: any) => {
-    const { person, onEdit, onDelete, language = 'EN', theme, fontScale, onAddChild, onToggleExpand, onAddParent, isHighlighted, isPrivacyMode } = data;
+    const { person, onEdit, onDelete, language = 'EN', theme, fontScale, onAddChild, onToggleExpand, onAddParent, onViewDetails, isHighlighted } = data;
     const t = translations[language as Language];
 
-    const [isHovered, setIsHovered] = useState(false);
     const isFemale = person.gender === 'FEMALE';
 
     // Translation helper for content
-    const translateContent = (text?: string) => getTranslatedContent(text, language);
+    const translateContent = (text?: string, field?: 'name'|'occupation'|'relation'|'spouse') => {
+        if (field && language !== 'EN' && person.translations?.[language]?.[field]) {
+            return person.translations[language][field];
+        }
+        return getTranslatedContent(text, language);
+    };
 
     return (
         <div
@@ -30,15 +33,13 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                                         person.generation === 6 ? "border-orange-600" :
                                             person.generation === 7 ? "border-teal-600" :
                                                 person.generation === 8 ? "border-indigo-600" :
-                                                    "border-pink-600"
+                                                    "border-pink-600",
+                "w-[280px] family-node-card"
             )}
-            style={{
-                width: 280,
-                fontSize: 'calc(1rem * var(--tree-font-scale))'
+            onClick={(e) => {
+                e.stopPropagation();
+                onViewDetails?.(person);
             }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            onClick={() => setIsHovered(!isHovered)}
         >
             {/* Target Handle */}
             <Handle type="target" position={Position.Top} className="!bg-gray-400 dark:!bg-slate-600 !w-3 !h-3" />
@@ -57,7 +58,7 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                     )}
                 >
                     <Plus size={12} strokeWidth={3} />
-                    {language === 'GU' ? 'પિતા ઉમેરો' : language === 'HI' ? 'पिता जोड़ें' : 'Add Father'}
+                    {t.addFather}
                 </button>
             )}
 
@@ -77,8 +78,8 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest opacity-90">{t.generations} {person.generation}</span>
                     {person.relation && (
-                        <span className="text-[9px] sm:text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">
-                            {translateContent(person.relation)}
+                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">
+                            {translateContent(person.relation, 'relation')}
                         </span>
                     )}
                 </div>
@@ -145,14 +146,14 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                             theme === 'rajashahi' ? "text-[#800000]" : "text-gray-800 dark:text-gray-100",
                             fontScale === 'sm' ? 'text-lg' : fontScale === 'md' ? 'text-xl' : 'text-2xl'
                         )}>
-                            {translateContent(person.name)}
+                            {translateContent(person.name, 'name')}
                         </h3>
                         {person.occupation && (
                             <p className={clsx(
                                 "text-xs font-medium italic truncate mt-0.5",
                                 theme === 'rajashahi' ? "text-amber-800" : "text-gray-500 dark:text-gray-400"
                             )}>
-                                {translateContent(person.occupation)}
+                                {translateContent(person.occupation, 'occupation')}
                             </p>
                         )}
                     </div>
@@ -178,15 +179,15 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                             )}
                         </div>
                         <div className="min-w-0">
-                            <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block leading-none mb-1">
-                                {person.gender === 'MALE' ? t.wife : t.husband}
+                            <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tighter truncate ml-1">
+                                {translateContent(person.spouse, 'spouse')}
                             </span>
                             <h3 className={clsx(
                                 "font-bold truncate leading-tight",
                                 theme === 'rajashahi' ? "text-[#800000]" : "text-gray-800 dark:text-gray-200",
                                 fontScale === 'sm' ? 'text-base' : fontScale === 'md' ? 'text-lg' : 'text-xl'
                             )}>
-                                {translateContent(person.spouse)}
+                                {translateContent(person.spouse, 'spouse')}
                             </h3>
                             {person.spouseOccupation && (
                                 <p className={clsx(
@@ -244,22 +245,12 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                         theme === 'rajashahi' ? "bg-[#800000] border-[#ffd700] text-[#ffd700]" : "bg-white dark:bg-slate-800 border-blue-500 text-blue-500",
                         "hover:scale-110 active:scale-95"
                     )}
-                    title={person.isCollapsed ? "Expand" : "Collapse"}
+                    title={person.isCollapsed ? t.expand : t.collapse}
                 >
                     {person.isCollapsed ? <Plus size={14} strokeWidth={3} /> : <Minus size={14} strokeWidth={3} />}
                 </button>
             )}
 
-            {/* Tooltip */}
-            {isHovered && (
-                <DetailsTooltip
-                    person={person}
-                    language={language}
-                    theme={theme}
-                    fontScale={fontScale}
-                    isPrivacyMode={isPrivacyMode}
-                />
-            )}
         </div>
     );
 };

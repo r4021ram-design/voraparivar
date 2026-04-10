@@ -28,6 +28,26 @@ export interface Person {
         lat?: number;
         lng?: number;
     };
+    
+    // Auto-Translations via Gemini
+    translations?: {
+        HI?: {
+            name?: string;
+            relation?: string;
+            occupation?: string;
+            bio?: string;
+            spouse?: string;
+            spouseOccupation?: string;
+        };
+        GU?: {
+            name?: string;
+            relation?: string;
+            occupation?: string;
+            bio?: string;
+            spouse?: string;
+            spouseOccupation?: string;
+        };
+    };
 
     children: Person[];
     isCollapsed?: boolean;

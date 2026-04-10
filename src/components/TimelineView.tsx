@@ -93,6 +93,7 @@ export default function TimelineView({ nodes, isOpen, onClose, onFocusNode, lang
                 <button
                     onClick={onClose}
                     className="p-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors text-gray-500 dark:text-gray-400"
+                    title={t.cancel}
                 >
                     <X size={20} />
                 </button>

@@ -69,7 +69,14 @@ export const translations = {
         fontLarge: 'A++',
         fontSize: 'Font Size',
         delete: 'Delete',
-        confirmDelete: 'Are you sure you want to delete?'
+        confirmDelete: 'Are you sure you want to delete?',
+        addFather: 'Add Father',
+        addMother: 'Add Mother',
+        newSon: 'New Son',
+        newDaughter: 'New Daughter',
+        newPerson: 'New Person',
+        expand: 'Expand',
+        collapse: 'Collapse'
     },
     HI: {
         findPerson: 'व्यक्ति खोजें',
@@ -139,7 +146,14 @@ export const translations = {
         fontLarge: 'अ++',
         fontSize: 'फ़ॉन्ट आकार',
         delete: 'हटाएं',
-        confirmDelete: 'क्या आप वाकई हटाना चाहते हैं?'
+        confirmDelete: 'क्या आप वाकई हटाना चाहते हैं?',
+        addFather: 'पिता जोड़ें',
+        addMother: 'माता जोड़ें',
+        newSon: 'नया पुत्र',
+        newDaughter: 'नई पुत्री',
+        newPerson: 'नया व्यक्ति',
+        expand: 'विस्तार करें',
+        collapse: 'संकोचित करें'
     },
     GU: {
         findPerson: 'વ્યક્તિ શોધો',
@@ -212,7 +226,14 @@ export const translations = {
         large: 'મોટું',
         extraLarge: 'ખૂબ મોટું',
         delete: 'કાઢી નાખો',
-        confirmDelete: 'શું તમે ખરેખર કાઢી નાખવા માંગો છો?'
+        confirmDelete: 'શું તમે ખરેખર કાઢી નાખવા માંગો છો?',
+        addFather: 'પિતા ઉમેરો',
+        addMother: 'માતા ઉમેરો',
+        newSon: 'નવો પુત્ર',
+        newDaughter: 'નવી પુત્રી',
+        newPerson: 'નવી વ્યક્તિ',
+        expand: 'વિસ્તૃત કરો',
+        collapse: 'સંકેલો'
     },
 } as const;
 
@@ -227,7 +248,7 @@ export const getTranslatedContent = (text: string | undefined, language: Languag
         // Names from data.ts (Keys trimmed for resilient matching)
         'छत्रा जी': { EN: 'Chatra Ji', HI: 'छत्रा जी', GU: 'છત્રા જી' },
         'भगवान जी': { EN: 'Bhagwan Ji', HI: 'भगवान जी', GU: 'ભગવાન જી' },
-        'नान जी': { EN: 'Nan Ji', HI: 'Nan Ji', GU: 'નાન જી' },
+        'नान जी': { EN: 'Nan Ji', HI: 'नान जी', GU: 'નાન જી' },
         'केवलराम जी': { EN: 'Kevalram Ji', HI: 'केवलराम जी', GU: 'કેવલરામ જી' },
         'मोतीराम जी': { EN: 'Motiram Ji', HI: 'मोतीराम जी', GU: 'મોતીરામ જી' },
         'साँकली बाई': { EN: 'Sankali Bai', HI: 'साँकली बाई', GU: 'સાંકલી બાઈ' },
@@ -242,7 +263,7 @@ export const getTranslatedContent = (text: string | undefined, language: Languag
         'हेमंत': { EN: 'Hemant', HI: 'हेमंत', GU: 'હેમંત' },
         'मयूर': { EN: 'Mayur', HI: 'मयूर', GU: 'મયુર' },
         'मगन जी': { EN: 'Magan Ji', HI: 'मगन जी', GU: 'મગન જી' },
-        'राजूभाई': { EN: 'Rajubhai', HI: 'Rajubhai', GU: 'રાજુભાઈ' },
+        'राजूभाई': { EN: 'Rajubhai', HI: 'राजूभाई', GU: 'રાજુભાઈ' },
         'रोहित': { EN: 'Rohit', HI: 'रोहित', GU: 'રોહિત' },
         'जीतू': { EN: 'Jitu', HI: 'जीतू', GU: 'જીતૂ' },
         'उमाशंकर जी': { EN: 'Umashankar Ji', HI: 'उमाशंकर जी', GU: 'ઉમાશંકર જી' },
@@ -282,6 +303,14 @@ export const getTranslatedContent = (text: string | undefined, language: Languag
         'वरदी शंकर जी': { EN: 'Vardi Shankar Ji', HI: 'वरदी शंकर जी', GU: 'વરદી શંકર જી' },
         'कीर्ति': { EN: 'Kirti', HI: 'कीर्ति', GU: 'કીર્તિ' },
         'चिमनलाल जी': { EN: 'Chimanlal Ji', HI: 'चिमनलाल जी', GU: 'ચિમનલાલ જી' },
+        'रुद्र': { EN: 'Rudra', HI: 'रुद्र', GU: 'રુદ્ર' },
+        'तन्वी': { EN: 'Tanvi', HI: 'तन्वी', GU: 'તન્વી' },
+        'Rudra': { EN: 'Rudra', HI: 'रुद्र', GU: 'રુદ્ર' },
+        'Tanvi': { EN: 'Tanvi', HI: 'तन्वी', GU: 'તન્વી' },
+        'RUDRA': { EN: 'Rudra', HI: 'रुद्र', GU: 'રુદ્ર' },
+        'TANVI': { EN: 'Tanvi', HI: 'तन्वी', GU: 'તન્વી' },
+        'New Son': { EN: 'New Son', HI: 'नया पुत्र', GU: 'નવો પુત્ર' },
+        'New Daughter': { EN: 'New Daughter', HI: 'नई पुत्री', GU: 'નવી પુત્રી' },
 
         // Terms
         'Son': { EN: 'Son', HI: 'पुत्र', GU: 'પુત્ર' },

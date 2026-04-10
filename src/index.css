@@ -112,6 +112,10 @@ body.rajashahi {
     radial-gradient(circle at 0 50%, #f7e6cc 5%, #fff9f0 6%, #fff9f0 15%, #f7e6cc 16%, #f7e6cc 20%, #fff9f0 21%, #fff9f0 30%, #f7e6cc 31%, #f7e6cc 35%, #fff9f0 36%, #fff9f0 45%, #f7e6cc 46%, #f7e6cc 49%, transparent 50%) !important;
 }
 
+.family-node-card {
+  font-size: calc(1rem * var(--tree-font-scale));
+}
+
 .rajashahi .react-flow__node-familyNode {
   box-shadow: 0 10px 25px -5px rgba(128, 0, 0, 0.2), 0 8px 10px -6px rgba(128, 0, 0, 0.2) !important;
 }

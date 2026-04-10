@@ -52,7 +52,11 @@ const CommunityDashboard: React.FC<CommunityDashboardProps> = ({ isOpen, onClose
                             <p className="text-blue-100 text-xs opacity-80 uppercase tracking-widest font-bold mt-1">{t.upcomingEvents}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                        title={t.cancel}
+                    >
                         <X size={24} />
                     </button>
                 </div>

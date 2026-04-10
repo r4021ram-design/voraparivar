@@ -26,12 +26,20 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
     const searchResults = useMemo(() => {
         if (!searchQuery && filterGender === 'ALL' && filterGenRange.min === 1 && filterGenRange.max === 15) return [];
 
+        const q = searchQuery.toLowerCase();
+
         return nodes.filter(node => {
             const person = node.data.person as Person;
-            const matchesSearch = !searchQuery ||
-                person.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (person.occupation?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                (person.id.toLowerCase().includes(searchQuery.toLowerCase()));
+
+            const nameMatched = person.name.toLowerCase().includes(q) ||
+                person.translations?.HI?.name?.toLowerCase().includes(q) ||
+                person.translations?.GU?.name?.toLowerCase().includes(q);
+
+            const occupationMatched = person.occupation?.toLowerCase().includes(q) ||
+                person.translations?.HI?.occupation?.toLowerCase().includes(q) ||
+                person.translations?.GU?.occupation?.toLowerCase().includes(q);
+
+            const matchesSearch = !searchQuery || nameMatched || occupationMatched || person.id.toLowerCase().includes(q);
 
             const matchesGender = filterGender === 'ALL' || person.gender === filterGender;
             const matchesGen = person.generation >= filterGenRange.min && person.generation <= filterGenRange.max;
@@ -39,6 +47,13 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
             return matchesSearch && matchesGender && matchesGen;
         });
     }, [nodes, searchQuery, filterGender, filterGenRange]);
+
+    const translatePersonContent = (person: Person, text?: string, field?: 'name'|'occupation') => {
+        if (field && language !== 'EN' && person.translations?.[language]?.[field]) {
+            return person.translations[language][field];
+        }
+        return getTranslatedContent(text, language);
+    };
 
     if (!isOpen) return null;
 
@@ -170,19 +185,19 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
                                         <h3 className="font-bold text-gray-800 dark:text-gray-200 rajashahi:text-[#800000] text-sm truncate group-hover:text-blue-700 dark:group-hover:text-blue-400">
                                             {searchQuery ? (
                                                 <span dangerouslySetInnerHTML={{
-                                                    __html: person.name.replace(
+                                                    __html: translatePersonContent(person, person.name, 'name')?.replace(
                                                         new RegExp(`(${searchQuery})`, 'gi'), 
                                                         '<mark class="bg-yellow-200 text-gray-900 rounded-sm px-0.5">$1</mark>'
-                                                    )
+                                                    ) || ''
                                                 }} />
                                             ) : (
-                                                person.name
+                                                translatePersonContent(person, person.name, 'name')
                                             )}
                                         </h3>
                                         <div className="flex flex-wrap gap-x-2 gap-y-1 mt-0.5">
                                             <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400 rajashahi:text-amber-800">
                                                 <Briefcase size={10} />
-                                                {getTranslatedContent(person.occupation, language)}
+                                                {translatePersonContent(person, person.occupation, 'occupation')}
                                             </span>
                                             <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 rounded-md font-medium">
                                                 {t.generations} {person.generation}

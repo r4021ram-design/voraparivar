@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X, Save } from 'lucide-react';
+import { X, Save, Wand2, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Person } from '../types';
 import { translations, type Language } from '../i18n';
+import { translateWithGemini } from '../utils/gemini';
 
 interface EditModalProps {
     person: Person | null;
@@ -41,6 +42,7 @@ const TextAreaField = ({ label, value, onChange }: { label: string, value: strin
 
 const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps) => {
     const [formData, setFormData] = useState<Person | null>(null);
+    const [isTranslating, setIsTranslating] = useState(false);
     const t = translations[language];
 
     useEffect(() => {
@@ -54,6 +56,40 @@ const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps)
     const handleSave = () => {
         onSave(formData);
         onClose();
+    };
+
+    const handleTranslate = async () => {
+        if (!formData) return;
+        setIsTranslating(true);
+        try {
+            const texts = {
+                name: formData.name,
+                relation: formData.relation,
+                occupation: formData.occupation,
+                bio: formData.bio,
+                spouse: formData.spouse,
+                spouseOccupation: formData.spouseOccupation,
+            };
+            
+            const translated = await translateWithGemini(texts);
+            if (translated) {
+                setFormData(prev => prev ? {
+                    ...prev,
+                    translations: {
+                        HI: { ...prev.translations?.HI, ...translated.HI },
+                        GU: { ...prev.translations?.GU, ...translated.GU }
+                    }
+                } : null);
+                alert("Translation successful! Translations are saved in the background.");
+            } else {
+                alert("Nothing to translate.");
+            }
+        } catch (error: any) {
+            console.error("Translation failed:", error);
+            alert("Translation failed. Make sure your API key is correct in .env\nError: " + error.message);
+        } finally {
+            setIsTranslating(false);
+        }
     };
 
     const handleChange = (field: keyof Person, value: any) => {
@@ -102,7 +138,6 @@ const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps)
                                             reader.readAsDataURL(file);
 
                                             // Upload to Supabase
-                                            // const { supabase } = await import('../lib/supabase'); // Removed dynamic import
                                             const fileExt = file.name.split('.').pop();
                                             const fileName = `${formData.id}/${Date.now()}.${fileExt}`;
                                             const { error: uploadError } = await supabase.storage
@@ -256,7 +291,6 @@ const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps)
                                                 };
                                                 reader.readAsDataURL(file);
 
-                                                // const { supabase } = await import('../lib/supabase'); // Removed dynamic import
                                                 const fileExt = file.name.split('.').pop();
                                                 const fileName = `${formData.id}/spouse_${Date.now()}.${fileExt}`;
 
@@ -303,11 +337,23 @@ const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps)
                     </div>
                 </div>
 
-                <div className="p-4 bg-gray-50 dark:bg-slate-800/80 border-t border-gray-100 dark:border-slate-700 flex justify-end gap-3">
-                    <button onClick={onClose} className="px-6 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-xl text-sm font-bold uppercase tracking-widest transition-all">{t.cancel}</button>
-                    <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
-                        <Save size={16} /> {t.saveChanges}
+                <div className="p-4 bg-gray-50 dark:bg-slate-800/80 border-t border-gray-100 dark:border-slate-700 flex justify-between items-center">
+                    <button 
+                        onClick={handleTranslate} 
+                        disabled={isTranslating}
+                        className="px-4 py-2 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/60 rounded-xl text-sm font-black uppercase tracking-widest flex items-center gap-2 transition-all disabled:opacity-50"
+                        title="Auto-translate names and bio using Gemini API"
+                    >
+                        {isTranslating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                        <span className="hidden sm:inline">Translate (AI)</span>
+                        <span className="sm:hidden">AI</span>
                     </button>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-6 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-xl text-sm font-bold uppercase tracking-widest transition-all">{t.cancel}</button>
+                        <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
+                            <Save size={16} /> {t.saveChanges}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

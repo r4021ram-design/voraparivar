@@ -22,6 +22,7 @@ import FamilyNode from './components/FamilyNode';
 import CustomEdge from './components/CustomEdge';
 import FileUpload from './components/FileUpload';
 import EditModal from './components/EditModal';
+import ViewPersonModal from './components/ViewPersonModal';
 import LoginScreen, { type UserData } from './components/LoginScreen';
 import { toPng } from 'html-to-image';
 import SearchSidebar from './components/SearchSidebar';
@@ -58,6 +59,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const { data: dbData, loading: dbLoading, refresh: refreshDb } = useSupabaseTree(); // [NEW]
   const [currentData, setCurrentData] = useState<Person>(EMPTY_ROOT);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+  const [viewPerson, setViewPerson] = useState<Person | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
@@ -65,7 +67,9 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const [theme, setTheme] = useState<'light' | 'dark' | 'rajashahi'>('light');
   const [fontScale, setFontScale] = useState<'sm' | 'md' | 'lg'>('md');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [highlightedPath, setHighlightedPath] = useState<string[]>([]);
   const [isPrivacyMode, setIsPrivacyMode] = useState(false);
+
   
   const { pushState, undo, redo, canUndo, canRedo, resetHistory } = useHistory(null);
 
@@ -105,6 +109,18 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     }
     return root;
   };
+
+  const findLineage = (root: Person, targetId: string, path: string[] = []): string[] | null => {
+    if (root.id === targetId) return [...path, root.id];
+    if (root.children) {
+      for (const child of root.children) {
+        const result = findLineage(child, targetId, [...path, root.id]);
+        if (result) return result;
+      }
+    }
+    return null;
+  };
+
 
   const handleAddChild = useCallback(async (parentId: string, type: 'son' | 'daughter') => {
     // 1. Optimistic Update
@@ -283,14 +299,9 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     }
   }, [currentData.id, refreshDb]);
 
-  const refreshLayout = useCallback((data: Person) => {
+  const refreshLayout = useCallback((data: Person, skipFitView = false) => {
     const { nodes: initialNodes, edges: initialEdgesRaw } = processTreeToElements(data);
 
-    // Apply custom styling to edges
-    const styledEdges = initialEdgesRaw.map(e => ({
-      ...e,
-      style: { stroke: edgeColor, strokeWidth: edgeWidth, opacity: 0.8 }
-    }));
 
     const canEdit = user.role === 'ADMIN' || user.role === 'STANDARD';
     const isAdmin = user.role === 'ADMIN';
@@ -304,20 +315,45 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
         onToggleExpand: handleToggleExpand,
         onDelete: isAdmin ? handleDelete : undefined,
         onAddParent: isAdmin ? handleAddParent : undefined,
+        onViewDetails: (p: Person) => handleViewDetails(p),
         language,
         theme,
         fontScale,
-        isPrivacyMode
+        isPrivacyMode,
+        isHighlighted: highlightedPath.includes(node.id) || selectedNodeId === node.id
       }
     }));
+
+    const styledEdges = initialEdgesRaw.map(e => {
+        const isHighlighted = highlightedPath.includes(e.source) && highlightedPath.includes(e.target);
+        return {
+            ...e,
+            style: { 
+                stroke: isHighlighted ? '#facc15' : edgeColor, 
+                strokeWidth: isHighlighted ? edgeWidth + 2 : edgeWidth, 
+                opacity: isHighlighted ? 1 : 0.8 
+            },
+            animated: isHighlighted
+        };
+    });
 
     setNodes(nodesWithCallback);
     setEdges(styledEdges);
 
-    window.requestAnimationFrame(() => {
-      fitView({ duration: 800, padding: 0.2 });
-    });
-  }, [setNodes, setEdges, user.role, handleAddChild, handleDelete, fitView, language, edgeColor, edgeWidth, theme, fontScale, isPrivacyMode]);
+
+    if (!skipFitView) {
+      window.requestAnimationFrame(() => {
+        fitView({ duration: 800, padding: 0.2 });
+      });
+    }
+  }, [setNodes, setEdges, user.role, handleAddChild, handleDelete, fitView, language, edgeColor, edgeWidth, theme, fontScale, isPrivacyMode, highlightedPath, selectedNodeId]);
+
+  // Reactive refresh when UI settings change
+  useEffect(() => {
+    if (currentData && currentData.id !== 'root') {
+      refreshLayout(currentData, true);
+    }
+  }, [language, theme, fontScale, isPrivacyMode, refreshLayout, currentData]);
 
   useEffect(() => {
     refreshLayoutRef.current = refreshLayout;
@@ -353,6 +389,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
         location_name: updatedPerson.location?.name,
         location_lat: updatedPerson.location?.lat,
         location_lng: updatedPerson.location?.lng,
+        translations: updatedPerson.translations, // added for Gemini integration
       }).eq('id', updatedPerson.id);
 
       if (error) throw error;
@@ -394,31 +431,28 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   };
 
   const handleFocusNode = useCallback((nodeId: string) => {
-    setSelectedNodeId(nodeId);
-    fitView({
-      nodes: [{ id: nodeId }],
-      duration: 1000,
-      minZoom: 0.8,
-      maxZoom: 1.2,
-      padding: 0.5
-    });
-
-    setNodes(nds => nds.map(n => ({
-      ...n,
-      data: { ...n.data, isHighlighted: n.id === nodeId }
-    })));
-
-    setTimeout(() => {
-      setNodes(nds => nds.map(n => ({
-        ...n,
-        data: { ...n.data, isHighlighted: false }
-      })));
-    }, 2000);
+    const lineage = findLineage(currentData, nodeId);
+    if (lineage) {
+        setHighlightedPath(lineage);
+        setSelectedNodeId(nodeId);
+        
+        fitView({
+            nodes: lineage.map(id => ({ id })),
+            duration: 1000,
+            padding: 0.3
+        });
+    }
 
     if (window.innerWidth < 640) {
       setIsSearchOpen(false);
     }
-  }, [fitView, setNodes]);
+  }, [fitView, currentData]);
+
+  const handleViewDetails = useCallback((person: Person) => {
+    setViewPerson(person);
+    handleFocusNode(person.id);
+  }, [handleFocusNode]);
+
 
   const handleExportImage = useCallback(() => {
     const flowElement = document.querySelector('.react-flow') as HTMLElement;
@@ -865,8 +899,11 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-          onPaneClick={() => setSelectedNodeId(null)}
+          onNodeClick={(_, node) => handleFocusNode(node.id)}
+          onPaneClick={() => {
+            setSelectedNodeId(null);
+            setHighlightedPath([]);
+          }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -889,6 +926,17 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           onSave={handleSaveEdit}
           language={language}
         />
+
+        {viewPerson && (
+          <ViewPersonModal
+            person={viewPerson}
+            language={language}
+            theme={theme}
+            fontScale={fontScale}
+            isPrivacyMode={user.role === 'VIEW_ONLY'}
+            onClose={() => setViewPerson(null)}
+          />
+        )}
 
         <SearchSidebar
           nodes={nodes}
