@@ -10,6 +10,7 @@ interface EditModalProps {
     onClose: () => void;
     onSave: (updatedPerson: Person) => void;
     language?: Language;
+    userRole?: string;
 }
 
 const InputField = ({ label, value, onChange, type = "text" }: { label: string, value: string, onChange: (val: string) => void, type?: string }) => (
@@ -40,7 +41,7 @@ const TextAreaField = ({ label, value, onChange }: { label: string, value: strin
     </div>
 );
 
-const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps) => {
+const EditModal = ({ person, onClose, onSave, language = 'EN', userRole }: EditModalProps) => {
     const [formData, setFormData] = useState<Person | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
     const t = translations[language];
@@ -200,6 +201,21 @@ const EditModal = ({ person, onClose, onSave, language = 'EN' }: EditModalProps)
 
                     <InputField label={t.birthDate} type="date" value={formData.dateOfBirth || ''} onChange={(v) => handleChange('dateOfBirth', v)} />
                     <InputField label={t.deathDate} type="date" value={formData.dateOfDeath || ''} onChange={(v) => handleChange('dateOfDeath', v)} />
+
+                    {/* Admin Only: Manual Sort Order */}
+                    {userRole === 'ADMIN' && (
+                        <div className="col-span-1 sm:col-span-2 mt-2 bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                            <InputField 
+                                label="Order (Birth Rank / Sequence)" 
+                                type="number" 
+                                value={formData.sort_order?.toString() || ''} 
+                                onChange={(v) => handleChange('sort_order', v ? parseInt(v) : undefined)} 
+                            />
+                            <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1 font-bold">
+                                * Higher priority than Date of Birth. Use 1, 2, 3... to force order.
+                            </p>
+                        </div>
+                    )}
 
                     {/* Phase 3: Bio & Location */}
                     <div className="col-span-1 sm:col-span-2 border-t border-gray-100 dark:border-slate-800 pt-6 mt-2">

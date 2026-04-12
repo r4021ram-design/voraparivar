@@ -21,7 +21,9 @@ export const flattenTreeForDb = (root: Person, parentId: string | null = null): 
         spouse_dod: root.spouseDateOfDeath || null,
         location_name: root.location?.name || null,
         location_lat: root.location?.lat || null,
-        location_lng: root.location?.lng || null
+        location_lng: root.location?.lng || null,
+        translations: root.translations || null,
+        sort_order: root.sort_order || null
     };
 
     let rows = [row];
@@ -33,17 +35,17 @@ export const flattenTreeForDb = (root: Person, parentId: string | null = null): 
     return rows;
 };
 
-export const bulkSyncTreeToDb = async (root: Person): Promise<boolean> => {
+export const bulkSyncTreeToDb = async (root: Person): Promise<{ success: boolean; error?: string }> => {
     try {
         const rows = flattenTreeForDb(root);
 
         // 1. Upsert all valid rows from the snapshot
         const { error: upsertError } = await supabase.from('people').upsert(rows);
-        if (upsertError) throw upsertError;
+        if (upsertError) return { success: false, error: `Upsert Error: ${upsertError.message}` };
 
         // 2. Fetch all current DB IDs
         const { data: currentDbNodes, error: fetchError } = await supabase.from('people').select('id');
-        if (fetchError) throw fetchError;
+        if (fetchError) return { success: false, error: `Fetch IDs Error: ${fetchError.message}` };
 
         // 3. Delete any nodes in DB that aren't in this snapshot
         if (currentDbNodes) {
@@ -52,15 +54,14 @@ export const bulkSyncTreeToDb = async (root: Person): Promise<boolean> => {
             const toDelete = dbIds.filter(id => !validIds.includes(id));
 
             if (toDelete.length > 0) {
-                // Supabase IN clause has a limit (often 1000), but family trees are usually < 500 for demo
                 const { error: deleteError } = await supabase.from('people').delete().in('id', toDelete);
-                if (deleteError) throw deleteError;
+                if (deleteError) return { success: false, error: `Delete Error: ${deleteError.message}` };
             }
         }
 
-        return true;
-    } catch (err) {
+        return { success: true };
+    } catch (err: any) {
         console.error("Bulk sync to Supabase failed:", err);
-        return false;
+        return { success: false, error: err.message };
     }
 };

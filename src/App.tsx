@@ -38,6 +38,8 @@ import { supabase } from './lib/supabase'; // [NEW]
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useHistory } from './hooks/useHistory';
 import { bulkSyncTreeToDb } from './utils/dbSync';
+import { bulkTranslateTree } from './utils/bulkTranslate';
+import { Wand2, Loader2 } from 'lucide-react';
 
 const nodeTypes = {
   familyNode: FamilyNode,
@@ -69,6 +71,8 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [highlightedPath, setHighlightedPath] = useState<string[]>([]);
   const [isPrivacyMode, setIsPrivacyMode] = useState(false);
+  const [translationProgress, setTranslationProgress] = useState<{ current: number, total: number } | null>(null);
+  const [isBulkTranslating, setIsBulkTranslating] = useState(false);
 
   
   const { pushState, undo, redo, canUndo, canRedo, resetHistory } = useHistory(null);
@@ -92,6 +96,17 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
 
   const { fitView } = useReactFlow();
   const t = translations[language];
+
+  // [FIX] Update progress bar width directly to avoid inline style lint warning
+  useEffect(() => {
+    if (translationProgress) {
+        const bar = document.getElementById('ai-translation-progress-bar');
+        if (bar) {
+            const percent = (translationProgress.current / translationProgress.total) * 100;
+            bar.style.width = `${percent}%`;
+        }
+    }
+  }, [translationProgress]);
 
   // Ref to break circular dependency
   const refreshLayoutRef = useRef<(data: Person) => void>(() => { });
@@ -389,7 +404,8 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
         location_name: updatedPerson.location?.name,
         location_lat: updatedPerson.location?.lat,
         location_lng: updatedPerson.location?.lng,
-        translations: updatedPerson.translations, // added for Gemini integration
+        translations: updatedPerson.translations,
+        sort_order: updatedPerson.sort_order, // Added to fix persistence
       }).eq('id', updatedPerson.id);
 
       if (error) throw error;
@@ -544,6 +560,54 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     }
   }, [dbData, dbLoading, resetHistory]);
 
+  const handleBulkTranslate = async () => {
+    if (!currentData || isBulkTranslating) return;
+    if (!confirm("This will translate the entire family tree into English, Hindi, and Gujarati using AI. This may take a moment. Proceed?")) return;
+
+    setIsBulkTranslating(true);
+    setTranslationProgress({ current: 0, total: 1 }); // Just to show starting
+
+    try {
+        const updatedTree = await bulkTranslateTree(currentData, (current, total) => {
+            setTranslationProgress({ current, total });
+        });
+
+        // Debug: log a sample translation
+        console.log('[BulkTranslate] Sample translation:', JSON.stringify(updatedTree.translations, null, 2));
+        if (updatedTree.children?.[0]) {
+            console.log('[BulkTranslate] First child translation:', JSON.stringify(updatedTree.children[0].translations, null, 2));
+        }
+
+        setCurrentData(updatedTree);
+        pushState(updatedTree);
+        refreshLayoutRef.current(updatedTree);
+
+        // Persist to localStorage as backup
+        try {
+            localStorage.setItem('vanshavali_data_v3', JSON.stringify(updatedTree));
+            console.log('[BulkTranslate] Saved to localStorage');
+        } catch (e) {
+            console.error('[BulkTranslate] Failed to save to localStorage:', e);
+        }
+
+        // Sync to DB immediately after bulk translation
+        const syncResult = await bulkSyncTreeToDb(updatedTree);
+        if (syncResult.success) {
+            refreshDb();
+            alert("Bulk Translation Successful! All members updated in database.");
+        } else {
+            console.error('[BulkTranslate] DB sync error:', syncResult.error);
+            alert(`Translation complete locally, but failed to sync with database.\n\nError: ${syncResult.error}\n\nHint: If the error mentions 'translations' column, run the SQL script: supabase_schema_v5_translations_fix.sql`);
+        }
+    } catch (error: any) {
+        console.error("Bulk translation failed:", error);
+        alert("Bulk translation failed.\nError: " + error.message);
+    } finally {
+        setIsBulkTranslating(false);
+        setTranslationProgress(null);
+    }
+  };
+
   const handleUndo = useCallback(async () => {
     if (!canUndo) return;
     const previousState = undo();
@@ -680,6 +744,14 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                   >
                     <Download size={16} />
                     <span className="text-[11px] font-bold truncate">{t.export}</span>
+                  </button>
+                  <button
+                    onClick={handleBulkTranslate}
+                    disabled={isBulkTranslating}
+                    className="w-full flex items-center justify-center gap-1.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-2 py-1.5 rounded-lg shadow-md border border-purple-200 dark:border-purple-800 hover:bg-purple-200 dark:hover:bg-purple-900/60 font-bold transition-all disabled:opacity-50"
+                  >
+                    {isBulkTranslating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                    <span className="text-[11px] font-bold truncate">Bulk AI Translate</span>
                   </button>
                   <button
                     onClick={() => setIsCommunityOpen(true)}
@@ -927,6 +999,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           onClose={() => setEditingPerson(null)}
           onSave={handleSaveEdit}
           language={language}
+          userRole={user.role}
         />
 
         {viewPerson && (
@@ -1080,9 +1153,39 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
             </div>
           </div>
         )}
-      </div>
-    </div >
-  );
+      {/* Progress Overlay for Bulk Translation */}
+      {translationProgress && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[200] flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-gray-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                  <div className="flex flex-col items-center text-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                          <Wand2 size={24} className="animate-pulse" />
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-gray-900 dark:text-white">AI Bulk Translation</h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                              Processing your family tree...
+                          </p>
+                      </div>
+                      
+                      {/* Progress Bar Container */}
+                      <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden mt-2">
+                          <div 
+                              id="ai-translation-progress-bar"
+                              className="bg-purple-500 h-full transition-all duration-500"
+                          />
+                      </div>
+                      
+                      <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                          {translationProgress.current} OF {translationProgress.total} MEMBERS
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+    </div>
+  </div >
+);
 };
 
 export default function App() {

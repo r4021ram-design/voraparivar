@@ -38,41 +38,45 @@ export const migrateDataToSupabase = async () => {
 
     // 3. Recursive Insert Function
     const insertPerson = async (person: Person, parentId: string | null) => {
-
-        // Prepare payload
+        // Prepare payload with original ID to maintain hierarchy
         const payload = {
+            id: person.id,
             name: person.name,
             gender: person.gender,
             relation: person.relation,
             generation: person.generation,
             bio: person.bio,
             occupation: person.occupation,
-            // dob: person.dateOfBirth ? new Date(person.dateOfBirth) : null, // Needs robust parsing
-            // dod: person.dateOfDeath ? new Date(person.dateOfDeath) : null,
+            dob: person.dateOfBirth || null,
+            dod: person.dateOfDeath || null,
             phone: person.phoneNumber,
             spouse_name: person.spouse,
             spouse_occupation: person.spouseOccupation,
             spouse_phone: person.spousePhoneNumber,
-            spouse_dob: person.spouseDateOfBirth, // Kept raw string? Postgres expects date/timestamptz.
-            spouse_dod: person.spouseDateOfDeath, // It's safer to not cast if the format is unsure, but supabase might error. 
-            // In App.tsx insert, it wasn't casting either. Let's assume the string format YYYY-MM-DD matches or is null.
+            spouse_dob: person.spouseDateOfBirth,
+            spouse_dod: person.spouseDateOfDeath,
+            location_name: person.location?.name,
+            location_lat: person.location?.lat,
+            location_lng: person.location?.lng,
+            translations: person.translations || {},
+            sort_order: person.sort_order || null,
             parent_id: parentId
         };
 
-        // Insert
+        // Upsert ensures we don't create duplicates if re-run
         const { data, error } = await supabase
             .from('people')
-            .insert(payload)
-            .select() // Return the created record to get the new UUID
+            .upsert(payload)
+            .select() 
             .single();
 
         if (error) {
-            console.error(`Error inserting ${person.name}:`, error);
+            console.error(`Error syncing ${person.name}:`, error);
             return;
         }
 
         const newId = data.id;
-        console.log(`Migrated: ${person.name} -> ${newId}`);
+        console.log(`Synced: ${person.name} -> ${newId}`);
 
         // Migrate Children
         if (person.children && person.children.length > 0) {

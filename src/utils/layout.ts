@@ -41,19 +41,42 @@ export const processTreeToElements = (root: Person) => {
     const initialNodes: Node[] = [];
     const initialEdges: Edge[] = [];
 
-    const traverse = (person: Person, depth: number) => {
+    const traverse = (person: Person, depth: number, childOrder?: number, hasSiblings?: boolean) => {
         // Ensure generation is set for styling, even if missing from data
         const personWithGen = { ...person, generation: depth + 1 };
 
         initialNodes.push({
             id: person.id,
             type: 'familyNode',
-            data: { person: personWithGen },
+            data: { 
+                person: personWithGen,
+                childOrder,
+                hasSiblings
+            },
             position: { x: 0, y: 0 }, // Will be set by dagre
         });
 
         if (person.children && !person.isCollapsed) {
-            person.children.forEach((child) => {
+            // Sorting children: 
+            // 1. Priority: Manual sort_order (if set)
+            // 2. Fallback: dateOfBirth
+            person.children.sort((a, b) => {
+                // If both have explicit sort_order, compare them
+                if (a.sort_order != null && b.sort_order != null) {
+                    return a.sort_order - b.sort_order;
+                }
+                // If only one has sort_order, it comes first
+                if (a.sort_order != null) return -1;
+                if (b.sort_order != null) return 1;
+
+                // Fallback to dateOfBirth
+                if (a.dateOfBirth && b.dateOfBirth) {
+                    return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime();
+                }
+                return 0;
+            });
+
+            person.children.forEach((child, index) => {
                 initialEdges.push({
                     id: `e${person.id}-${child.id}`,
                     source: person.id,
@@ -61,7 +84,7 @@ export const processTreeToElements = (root: Person) => {
                     type: 'customEdge',
                     animated: false,
                 });
-                traverse(child, depth + 1);
+                traverse(child, depth + 1, index + 1, person.children.length > 1);
             });
         }
     };

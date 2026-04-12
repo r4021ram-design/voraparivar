@@ -47,9 +47,11 @@ export const useSupabaseTree = () => {
                         spouseDateOfBirth: p.spouse_dob,
                         spouseDateOfDeath: p.spouse_dod,
                         location: p.location_name ? { name: p.location_name, lat: p.location_lat, lng: p.location_lng } : undefined,
-                        children: buildTree(p.id), // Recursion
-                        isCollapsed: false // Default state
-                        // Add photoUrl logic later if joined
+                        translations: p.translations,
+                        sort_order: p.sort_order,
+                        photoUrl: p.photo_url, // Added to support profile photos from DB
+                        children: buildTree(p.id),
+                        isCollapsed: false 
                     }));
             };
 
@@ -73,6 +75,9 @@ export const useSupabaseTree = () => {
                     spouseDateOfBirth: root.spouse_dob,
                     spouseDateOfDeath: root.spouse_dod,
                     location: root.location_name ? { name: root.location_name, lat: root.location_lat, lng: root.location_lng } : undefined,
+                    translations: root.translations,
+                    sort_order: root.sort_order,
+                    photoUrl: root.photo_url,
                     children: buildTree(root.id)
                 } as Person;
                 setData(tree);

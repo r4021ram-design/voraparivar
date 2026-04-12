@@ -44,7 +44,7 @@ Expected Output Format:
 `;
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -55,9 +55,9 @@ Expected Output Format:
                         text: prompt
                     }]
                 }],
-                generationConfig: {
+                generation_config: {
                     temperature: 0.1,
-                    responseMimeType: "application/json",
+                    response_mime_type: "application/json",
                 }
             })
         });
@@ -76,6 +76,7 @@ Expected Output Format:
 
         const parsed = JSON.parse(textResponse);
         return parsed as {
+            EN: Record<string, string>;
             HI: Record<string, string>;
             GU: Record<string, string>;
         };

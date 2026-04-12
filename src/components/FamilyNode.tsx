@@ -6,7 +6,7 @@ import type { Language } from '../i18n';
 import { translations, getTranslatedContent } from '../i18n';
 
 const FamilyNode = ({ data, isConnectable }: any) => {
-    const { person, onEdit, onDelete, language = 'EN', theme, fontScale, onAddChild, onToggleExpand, onAddParent, onViewDetails, isHighlighted } = data;
+    const { person, onEdit, onDelete, language = 'EN', theme, fontScale, onAddChild, onToggleExpand, onAddParent, onViewDetails, isHighlighted, childOrder, hasSiblings } = data;
     const t = translations[language as Language];
 
     const isFemale = person.gender === 'FEMALE';
@@ -76,6 +76,15 @@ const FamilyNode = ({ data, isConnectable }: any) => {
                                                     "bg-pink-600"
             )}>
                 <div className="flex items-center gap-2">
+                    {/* Child Number Badge */}
+                    {hasSiblings && childOrder && (
+                        <span className={clsx(
+                            "flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-black shadow-inner",
+                            theme === 'rajashahi' ? "bg-[#ffd700] text-[#800000]" : "bg-white/20 text-white"
+                        )}>
+                            {childOrder}
+                        </span>
+                    )}
                     <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest opacity-90">{t.generations} {person.generation}</span>
                     {person.relation && (
                         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">

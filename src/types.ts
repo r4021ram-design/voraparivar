@@ -11,6 +11,7 @@ export interface Person {
     occupation?: string;
     anniversaryDate?: string;
     phoneNumber?: string;
+    sort_order?: number;
 
     // Extended Spouse Details
     spousePhotoUrl?: string;
