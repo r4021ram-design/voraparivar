@@ -86,7 +86,7 @@ export const useTreeLayout = (options: UseTreeLayoutOptions) => {
 
         if (!skipFitView) {
             window.requestAnimationFrame(() => {
-                fitView({ duration: 800, padding: 0.2 });
+                fitView({ duration: 800, padding: 0.35 });
             });
         }
     }, [

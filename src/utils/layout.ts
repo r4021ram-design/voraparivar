@@ -2,8 +2,8 @@ import dagre from '@dagrejs/dagre';
 import { type Node, type Edge, Position } from 'reactflow';
 import type { Person } from '../types';
 
-const nodeWidth = 250;
-const nodeHeight = 150;
+const nodeWidth = 290;
+const nodeHeight = 160;
 
 export const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
     const dagreGraph = new dagre.graphlib.Graph();
