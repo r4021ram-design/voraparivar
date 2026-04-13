@@ -1,20 +1,16 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
   MiniMap,
-  useNodesState,
-  useEdgesState,
   ReactFlowProvider,
-  useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
   Download, RotateCcw, LogOut, Search as SearchIcon,
   Settings,
-  X,
   Menu,
-  Calendar, Moon, Sun, Maximize, Palette, Printer, Users, CloudUpload, Eye, EyeOff, Undo, Redo
+  Calendar, Moon, Sun, Maximize, Palette, Printer, Users, CloudUpload, Eye, EyeOff, Undo, Redo, Wand2, Loader2
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -23,23 +19,27 @@ import CustomEdge from './components/CustomEdge';
 import FileUpload from './components/FileUpload';
 import EditModal from './components/EditModal';
 import ViewPersonModal from './components/ViewPersonModal';
-import LoginScreen, { type UserData } from './components/LoginScreen';
+import LoginScreen from './components/LoginScreen';
 import { toPng } from 'html-to-image';
 import SearchSidebar from './components/SearchSidebar';
 import TimelineView from './components/TimelineView';
 import CommunityDashboard from './components/CommunityDashboard';
 import Breadcrumbs from './components/Breadcrumbs';
-import { translations, type Language } from './i18n';
-import { loadFamilyTreeData, EMPTY_ROOT } from './data';
-import { processTreeToElements } from './utils/layout';
+import { translations } from './i18n';
+import { loadFamilyTreeData } from './data';
 import type { Person } from './types';
-import { useSupabaseTree } from './hooks/useSupabaseTree'; // [NEW]
-import { supabase } from './lib/supabase'; // [NEW]
+import { useFamilyTree } from './hooks/useFamilyTree';
+import { supabase } from './lib/supabase';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { useHistory } from './hooks/useHistory';
-import { bulkSyncTreeToDb } from './utils/dbSync';
-import { bulkTranslateTree } from './utils/bulkTranslate';
-import { Wand2, Loader2 } from 'lucide-react';
+import HeaderEditor from './components/HeaderEditor';
+import TranslationOverlay from './components/TranslationOverlay';
+import NavigationDrawers from './components/NavigationDrawers';
+import { togglePersonCollapse } from './features/family-tree/utils/treeTransforms';
+import { useAuthSession } from './features/auth/hooks/useAuthSession';
+import { useTreePreferences } from './features/family-tree/hooks/useTreePreferences';
+import { useTreeSelection } from './features/family-tree/hooks/useTreeSelection';
+import { useTreeLayout } from './features/family-tree/hooks/useTreeLayout';
+import type { UserData } from './types/auth';
 
 const nodeTypes = {
   familyNode: FamilyNode,
@@ -55,49 +55,104 @@ interface FamilyTreeFlowProps {
 }
 
 const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const {
+    currentData,
+    setCurrentData,
+    isBulkTranslating,
+    translationProgress,
+    handleAddChild,
+    handleDelete,
+    handleSaveEdit,
+    handleBulkTranslate,
+    handleUndo,
+    handleRedo,
+    canUndo,
+    canRedo,
+    refreshDb
+  } = useFamilyTree(user.role);
 
-  const { data: dbData, loading: dbLoading, refresh: refreshDb } = useSupabaseTree(); // [NEW]
-  const [currentData, setCurrentData] = useState<Person>(EMPTY_ROOT);
+  // UI state
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
   const [viewPerson, setViewPerson] = useState<Person | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
-  const [language, setLanguage] = useState<Language>('EN');
-  const [theme, setTheme] = useState<'light' | 'dark' | 'rajashahi'>('light');
-  const [fontScale, setFontScale] = useState<'sm' | 'md' | 'lg'>('md');
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [highlightedPath, setHighlightedPath] = useState<string[]>([]);
-  const [isPrivacyMode, setIsPrivacyMode] = useState(false);
-  const [translationProgress, setTranslationProgress] = useState<{ current: number, total: number } | null>(null);
-  const [isBulkTranslating, setIsBulkTranslating] = useState(false);
-
-  
-  const { pushState, undo, redo, canUndo, canRedo, resetHistory } = useHistory(null);
-
-  // Header Content State
-  const [headerVerse, setHeaderVerse] = useState(() =>
-    localStorage.getItem('vanshavali_header_verse_v1') ??
-    "अत्रि गोत्रोत्पन्नाः वयं, यजुर्वेदीय-माध्यन्दिनि-शाखाध्यायिनः; सहस्र-औदीच्य-गोरवाल-ब्राह्मणाः — धर्मरक्षणाय समर्पिताः।"
-  );
-  const [headerTitle, setHeaderTitle] = useState(() =>
-    localStorage.getItem('vanshavali_header_title_v1') ??
-    "वोरा वंशावली"
-  );
-  const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState(false);
   const [isRightDrawerOpen, setIsRightDrawerOpen] = useState(false);
 
-  // Custom Branch Styling
-  const [edgeColor, setEdgeColor] = useState('#8B4513'); // Default brown
-  const [edgeWidth, setEdgeWidth] = useState(4);
+  // Extracted hooks
+  const prefs = useTreePreferences();
+  const { selectedNodeId, highlightedPath, focusNode, focusRoot, clearSelection } = useTreeSelection(currentData);
 
-  const { fitView } = useReactFlow();
-  const t = translations[language];
+  const t = translations[prefs.language];
 
-  // [FIX] Update progress bar width directly to avoid inline style lint warning
+  const handleToggleExpand = useCallback((personId: string) => {
+    setCurrentData((prevData) => {
+      const newData = togglePersonCollapse(prevData, personId);
+      setTimeout(() => layout.refreshLayoutRef.current(newData), 0);
+      return newData;
+    });
+  }, [setCurrentData]);
+
+  const handleViewDetails = useCallback((person: Person) => {
+    setViewPerson(person);
+    focusNode(person.id);
+  }, [focusNode]);
+
+  const handleEditPerson = useCallback((person: Person) => {
+    setEditingPerson(person);
+  }, []);
+
+  const handleAddParent = useCallback(async () => {
+    const newRootId = crypto.randomUUID();
+    const oldRootId = currentData.id;
+
+    const newRoot: Person = {
+      id: newRootId,
+      name: 'New Ancestor',
+      generation: 1,
+      gender: 'MALE',
+      children: [{ ...currentData }]
+    };
+
+    setCurrentData(newRoot);
+    try {
+        const { error: insertError } = await supabase.from('people').insert({
+          id: newRootId,
+          parent_id: null,
+          name: 'New Ancestor',
+          gender: 'MALE',
+          generation: 1,
+        });
+        if (insertError) throw insertError;
+        if (oldRootId) {
+            await supabase.from('people').update({ parent_id: newRootId }).eq('id', oldRootId);
+        }
+        refreshDb();
+    } catch (e) {
+        console.error(e);
+    }
+  }, [currentData, setCurrentData, refreshDb]);
+
+  const layout = useTreeLayout({
+    userRole: user.role,
+    language: prefs.language,
+    theme: prefs.theme,
+    fontScale: prefs.fontScale,
+    isPrivacyMode: prefs.isPrivacyMode,
+    highlightedPath,
+    selectedNodeId,
+    edgeColor: prefs.edgeColor,
+    edgeWidth: prefs.edgeWidth,
+    handleAddChild,
+    handleDelete,
+    handleToggleExpand,
+    handleAddParent,
+    onEditPerson: handleEditPerson,
+    onViewDetails: handleViewDetails,
+  });
+
+  // Progress bar DOM update
   useEffect(() => {
     if (translationProgress) {
         const bar = document.getElementById('ai-translation-progress-bar');
@@ -108,332 +163,62 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     }
   }, [translationProgress]);
 
-  // Ref to break circular dependency
-  const refreshLayoutRef = useRef<(data: Person) => void>(() => { });
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
-  // Recursive update function
-  const updatePersonInTree = (root: Person, updatedPerson: Person): Person => {
-    if (root.id === updatedPerson.id) {
-      return { ...updatedPerson, children: root.children };
-    }
-    if (root.children) {
-      return {
-        ...root,
-        children: root.children.map(child => updatePersonInTree(child, updatedPerson))
-      };
-    }
-    return root;
-  };
-
-  const findLineage = (root: Person, targetId: string, path: string[] = []): string[] | null => {
-    if (root.id === targetId) return [...path, root.id];
-    if (root.children) {
-      for (const child of root.children) {
-        const result = findLineage(child, targetId, [...path, root.id]);
-        if (result) return result;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) { handleRedo(); } else { handleUndo(); }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
       }
-    }
-    return null;
-  };
-
-
-  const handleAddChild = useCallback(async (parentId: string, type: 'son' | 'daughter') => {
-    // 1. Optimistic Update
-    const newChildId = crypto.randomUUID();
-    const isMale = type === 'son';
-    let parentGeneration = 1; // Will be captured during tree traversal
-
-    const addChildRecursive = (root: Person): Person => {
-      if (root.id === parentId) {
-        parentGeneration = root.generation; // Capture parent's generation for DB insert
-        const newChild: Person = {
-          id: newChildId,
-          name: `New ${type === 'son' ? 'Son' : 'Daughter'}`,
-          generation: root.generation + 1,
-          relation: type === 'son' ? 'Son' : 'Daughter',
-          gender: isMale ? 'MALE' : 'FEMALE',
-          children: []
-        };
-        return { ...root, children: [...root.children, newChild] };
-      }
-      if (root.children) {
-        return { ...root, children: root.children.map(child => addChildRecursive(child)) };
-      }
-      return root;
     };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
-    setCurrentData((prevData) => {
-      const newData = addChildRecursive(prevData);
-      setTimeout(() => {
-        pushState(newData);
-        refreshLayoutRef.current(newData);
-      }, 0);
-      return newData;
-    });
-
-    // 2. DB Insert — use captured parentGeneration
-    try {
-      const { error } = await supabase.from('people').insert({
-        id: newChildId,
-        parent_id: parentId,
-        name: `New ${type === 'son' ? 'Son' : 'Daughter'}`,
-        gender: isMale ? 'MALE' : 'FEMALE',
-        relation: type === 'son' ? 'Son' : 'Daughter',
-        generation: parentGeneration + 1,
-      });
-      if (error) throw error;
-      refreshDb();
-    } catch (e) {
-      console.error("Error adding child to DB:", e);
-      alert("Failed to save new child to database.");
-    }
-
-  }, [refreshDb]);
-
-  const handleDelete = useCallback(async (personId: string) => {
-    if (personId === 'root') {
-      alert("Cannot delete the root node.");
-      return;
-    }
-    if (!confirm("Are you sure? This will delete the person and ALL descendants.")) return;
-
-    // 1. Optimistic Update
-    const deleteRecursive = (root: Person): Person | null => {
-      if (root.id === personId) return null;
-      if (root.children) {
-        const newChildren = root.children
-          .map(child => deleteRecursive(child))
-          .filter((child): child is Person => child !== null);
-        return { ...root, children: newChildren };
-      }
-      return root;
-    };
-
-    setCurrentData((prevData) => {
-      const newData = deleteRecursive(prevData);
-      if (!newData) return prevData;
-      setTimeout(() => {
-        pushState(newData);
-        refreshLayoutRef.current(newData);
-      }, 0);
-      return newData;
-    });
-
-    // 2. DB Delete (Recursive handled by Postgres CASCADE if configured, OR we do it here)
-    // For now, assuming CASCADE on parent_id isn't strictly set for safety, 
-    // BUT we should probably rely on a DB function or ensure schema supports keys.
-    // Let's assume user manually deletes leaf nodes or we delete by ID. 
-    // Actually, simply deleting the ID in 'people' will fail if children exist unless CASCADE is on.
-    // I'll try normal delete.
-    try {
-      const { error } = await supabase.from('people').delete().eq('id', personId);
-      if (error) throw error;
-      refreshDb();
-    } catch (e) {
-      console.error("Failed to delete from DB:", e);
-      alert("Failed to delete from database. Ensure no children exist or DB Cascade is on.");
-    }
-  }, [refreshDb]);
-
-  const handleToggleExpand = useCallback((personId: string) => {
-    const toggleRecursive = (root: Person): Person => {
-      if (root.id === personId) {
-        return { ...root, isCollapsed: !root.isCollapsed };
-      }
-      if (root.children) {
-        return {
-          ...root,
-          children: root.children.map(child => toggleRecursive(child))
-        };
-      }
-      return root;
-    };
-
-    setCurrentData((prevData) => {
-      const newData = toggleRecursive(prevData);
-      try {
-        localStorage.setItem('vanshavali_data_v3', JSON.stringify(newData));
-      } catch (e) {
-        console.error("Failed to save", e);
-      }
-      setTimeout(() => refreshLayoutRef.current(newData), 0);
-      return newData;
-    });
-  }, []);
-
-  const handleAddParent = useCallback(async () => {
-    const newRootId = crypto.randomUUID();
-    const oldRootId = currentData.id;
-
-    // 1. Optimistic update
-    setCurrentData((prevData) => {
-      const newRoot: Person = {
-        id: newRootId,
-        name: 'New Ancestor',
-        generation: 1,
-        gender: 'MALE',
-        children: [{ ...prevData }]
-      };
-
-      try {
-        localStorage.setItem('vanshavali_data_v3', JSON.stringify(newRoot));
-      } catch (e) {
-        console.error("Failed to save", e);
-      }
-      setTimeout(() => {
-        pushState(newRoot);
-        refreshLayoutRef.current(newRoot);
-      }, 0);
-      return newRoot;
-    });
-
-    // 2. DB update
-    try {
-        const { error: insertError } = await supabase.from('people').insert({
-          id: newRootId,
-          parent_id: null,
-          name: 'New Ancestor',
-          gender: 'MALE',
-          generation: 1,
-        });
-        if (insertError) throw insertError;
-
-        // Update old root's parent_id to point to the new ancestor 
-        // Note: we don't shift all generations in DB yet, usually better to calculate generations on read from root.
-        if (oldRootId !== 'root') { 
-             const { error: updateError } = await supabase.from('people')
-                .update({ parent_id: newRootId })
-                .eq('id', oldRootId);
-             if (updateError) throw updateError;
-        }
-        
-        refreshDb();
-    } catch (e) {
-        console.error("Failed to sync new parent to DB:", e);
-        alert("Failed to save new ancestor to database.");
-    }
-  }, [currentData.id, refreshDb]);
-
-  const refreshLayout = useCallback((data: Person, skipFitView = false) => {
-    const { nodes: initialNodes, edges: initialEdgesRaw } = processTreeToElements(data);
-
-
-    const canEdit = user.role === 'ADMIN' || user.role === 'STANDARD';
-    const isAdmin = user.role === 'ADMIN';
-
-    const nodesWithCallback = initialNodes.map(node => ({
-      ...node,
-      data: {
-        ...node.data,
-        onEdit: canEdit ? (p: Person) => setEditingPerson(p) : undefined,
-        onAddChild: canEdit ? handleAddChild : undefined,
-        onToggleExpand: handleToggleExpand,
-        onDelete: isAdmin ? handleDelete : undefined,
-        onAddParent: isAdmin ? handleAddParent : undefined,
-        onViewDetails: (p: Person) => handleViewDetails(p),
-        language,
-        theme,
-        fontScale,
-        isPrivacyMode,
-        isHighlighted: highlightedPath.includes(node.id) || selectedNodeId === node.id
-      }
-    }));
-
-    const styledEdges = initialEdgesRaw.map(e => {
-        const isHighlighted = highlightedPath.includes(e.source) && highlightedPath.includes(e.target);
-        return {
-            ...e,
-            style: { 
-                stroke: isHighlighted ? '#facc15' : edgeColor, 
-                strokeWidth: isHighlighted ? edgeWidth + 2 : edgeWidth, 
-                opacity: isHighlighted ? 1 : 0.8 
-            },
-            animated: isHighlighted
-        };
-    });
-
-    setNodes(nodesWithCallback);
-    setEdges(styledEdges);
-
-
-    if (!skipFitView) {
-      window.requestAnimationFrame(() => {
-        fitView({ duration: 800, padding: 0.2 });
-      });
-    }
-  }, [setNodes, setEdges, user.role, handleAddChild, handleDelete, fitView, language, edgeColor, edgeWidth, theme, fontScale, isPrivacyMode, highlightedPath, selectedNodeId]);
-
-  // Reactive refresh when UI settings change
+  // Reactive refresh when UI settings or data change
   useEffect(() => {
     if (currentData && currentData.id !== 'root') {
-      refreshLayout(currentData, true);
+      layout.refreshLayout(currentData, true);
     }
-  }, [language, theme, fontScale, isPrivacyMode, refreshLayout, currentData]);
+  }, [prefs.language, prefs.theme, prefs.fontScale, prefs.isPrivacyMode, layout.refreshLayout, currentData]);
 
+  // Initial layout when data arrives
   useEffect(() => {
-    refreshLayoutRef.current = refreshLayout;
-  }, [refreshLayout]);
-
-  const handleSaveEdit = useCallback(async (updatedPerson: Person) => {
-    setCurrentData(prev => {
-      const newData = updatePersonInTree(prev, updatedPerson);
-      setTimeout(() => {
-        pushState(newData);
-        refreshLayoutRef.current(newData);
-      }, 0);
-      return newData;
-    });
-    setEditingPerson(null);
-
-    // 2. DB Update
-    try {
-      const { error } = await supabase.from('people').update({
-        name: updatedPerson.name,
-        gender: updatedPerson.gender,
-        relation: updatedPerson.relation,
-        bio: updatedPerson.bio,
-        occupation: updatedPerson.occupation,
-        dob: updatedPerson.dateOfBirth,
-        dod: updatedPerson.dateOfDeath,
-        phone: updatedPerson.phoneNumber,
-        spouse_name: updatedPerson.spouse,
-        spouse_occupation: updatedPerson.spouseOccupation,
-        spouse_phone: updatedPerson.spousePhoneNumber,
-        spouse_dob: updatedPerson.spouseDateOfBirth,
-        spouse_dod: updatedPerson.spouseDateOfDeath,
-        location_name: updatedPerson.location?.name,
-        location_lat: updatedPerson.location?.lat,
-        location_lng: updatedPerson.location?.lng,
-        translations: updatedPerson.translations,
-        sort_order: updatedPerson.sort_order, // Added to fix persistence
-      }).eq('id', updatedPerson.id);
-
-      if (error) throw error;
-      refreshDb();
-    } catch (e) {
-      console.error("Error updating DB:", e);
-      alert("Failed to save changes to database.");
+    if (currentData && currentData.name !== 'Loading…') {
+      layout.refreshLayout(currentData);
     }
-  }, [refreshDb]);
+  }, [currentData, layout.refreshLayout]);
+
+  // Theme body class
+  useEffect(() => {
+    document.body.className = prefs.theme === 'rajashahi' ? 'rajashahi' : '';
+  }, [prefs.theme]);
+
+  const handleFocusNode = useCallback((nodeId: string) => {
+    focusNode(nodeId);
+    if (window.innerWidth < 640) {
+      setIsSearchOpen(false);
+    }
+  }, [focusNode]);
 
   const handleDataLoaded = useCallback((data: Person) => {
-    try {
-      localStorage.setItem('vanshavali_data_v3', JSON.stringify(data));
-    } catch (e) {
-      console.error("Failed to save to localStorage", e);
-    }
     setCurrentData(data);
-    refreshLayout(data);
-  }, [refreshLayout]);
+    layout.refreshLayout(data);
+  }, [setCurrentData, layout.refreshLayout]);
 
   const handleReset = useCallback(async () => {
-    if (confirm("Are you sure you want to reset all data to default? This cannot be undone.")) {
-      localStorage.removeItem('vanshavali_data_v3');
+    if (confirm("Reset to default?")) {
       const defaultData = await loadFamilyTreeData();
       setCurrentData(defaultData);
-      refreshLayout(defaultData);
+      layout.refreshLayout(defaultData);
     }
-  }, [refreshLayout]);
+  }, [setCurrentData, layout.refreshLayout]);
 
   const handleExport = () => {
     const jsonString = JSON.stringify({ tree: currentData }, null, 2);
@@ -446,239 +231,45 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     URL.revokeObjectURL(url);
   };
 
-  const handleFocusNode = useCallback((nodeId: string) => {
-    const lineage = findLineage(currentData, nodeId);
-    if (lineage) {
-        setHighlightedPath(lineage);
-        setSelectedNodeId(nodeId);
-        
-        fitView({
-            nodes: lineage.map(id => ({ id })),
-            duration: 1000,
-            padding: 0.3
-        });
-    }
-
-    if (window.innerWidth < 640) {
-      setIsSearchOpen(false);
-    }
-  }, [fitView, currentData]);
-
-  const handleViewDetails = useCallback((person: Person) => {
-    setViewPerson(person);
-    handleFocusNode(person.id);
-  }, [handleFocusNode]);
-
-
   const handleExportImage = useCallback(() => {
     const flowElement = document.querySelector('.react-flow') as HTMLElement;
     if (!flowElement) return;
-
-    // Hide UI elements during export
-    const controls = document.querySelector('.react-flow__controls') as HTMLElement;
-    if (controls) controls.style.display = 'none';
-
-    toPng(flowElement, {
-      backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
-      quality: 1,
-      pixelRatio: 2,
-    })
+    toPng(flowElement, { backgroundColor: prefs.theme === 'dark' ? '#0f172a' : '#ffffff', quality: 1, pixelRatio: 2 })
       .then((dataUrl) => {
         const link = document.createElement('a');
-        link.download = `family-tree-${new Date().toISOString().split('T')[0]}.png`;
+        link.download = `family-tree.png`;
         link.href = dataUrl;
         link.click();
-      })
-      .finally(() => {
-        if (controls) controls.style.display = 'flex';
       });
-  }, [theme]);
+  }, [prefs.theme]);
 
   const handleExportPDF = useCallback(() => {
     const flowElement = document.querySelector('.react-flow') as HTMLElement;
     if (!flowElement) return;
-
-    // Hide UI elements during export
-    const controls = document.querySelector('.react-flow__controls') as HTMLElement;
-    if (controls) controls.style.display = 'none';
-
-    toPng(flowElement, {
-      backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
-      quality: 1,
-      pixelRatio: 2,
-    })
+    toPng(flowElement, { backgroundColor: prefs.theme === 'dark' ? '#0f172a' : '#ffffff', quality: 1, pixelRatio: 2 })
       .then(async (dataUrl) => {
-        // Dynamic import to keep bundle small
         const { jsPDF } = await import('jspdf');
-        const pdf = new jsPDF({
-          orientation: 'landscape',
-          unit: 'mm',
-          format: 'a4'
-        });
-        
-        const imgProps = pdf.getImageProperties(dataUrl);
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        
-        // Vertically center if image is shorter than A4 landscape height
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const yPos = pdfHeight < pageHeight ? (pageHeight - pdfHeight) / 2 : 0;
-        
-        pdf.addImage(dataUrl, 'PNG', 0, yPos, pdfWidth, pdfHeight);
-        pdf.save(`vanshavali-A4-${new Date().toISOString().split('T')[0]}.pdf`);
-      })
-      .catch((err) => {
-         console.error('Oops, something went wrong!', err);
-      })
-      .finally(() => {
-        if (controls) controls.style.display = 'flex';
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        pdf.addImage(dataUrl, 'PNG', 0, 0, 297, 210);
+        pdf.save(`vanshavali.pdf`);
       });
-  }, [theme]);
+  }, [prefs.theme]);
 
-  const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
-
-  const handleFocusRoot = useCallback(() => {
-    handleFocusNode('root');
-  }, [handleFocusNode]);
-
-  const handleSaveHeader = (e: React.FormEvent) => {
-    e.preventDefault();
-    localStorage.setItem('vanshavali_header_verse_v1', headerVerse);
-    localStorage.setItem('vanshavali_header_title_v1', headerTitle);
-    setIsEditingHeader(false);
-  };
-
-  useEffect(() => {
-    if (dbData) {
-      console.log("Loaded data from Supabase");
-      setCurrentData(dbData);
-      resetHistory(dbData);
-    } else if (!dbLoading) {
-      console.log("No DB data or Error, using default/local fallback.");
-    }
-  }, [dbData, dbLoading, resetHistory]);
-
-  const handleBulkTranslate = async () => {
-    if (!currentData || isBulkTranslating) return;
-    if (!confirm("This will translate the entire family tree into English, Hindi, and Gujarati using AI. This may take a moment. Proceed?")) return;
-
-    setIsBulkTranslating(true);
-    setTranslationProgress({ current: 0, total: 1 }); // Just to show starting
-
-    try {
-        const updatedTree = await bulkTranslateTree(currentData, (current, total) => {
-            setTranslationProgress({ current, total });
-        });
-
-        // Debug: log a sample translation
-        console.log('[BulkTranslate] Sample translation:', JSON.stringify(updatedTree.translations, null, 2));
-        if (updatedTree.children?.[0]) {
-            console.log('[BulkTranslate] First child translation:', JSON.stringify(updatedTree.children[0].translations, null, 2));
-        }
-
-        setCurrentData(updatedTree);
-        pushState(updatedTree);
-        refreshLayoutRef.current(updatedTree);
-
-        // Persist to localStorage as backup
-        try {
-            localStorage.setItem('vanshavali_data_v3', JSON.stringify(updatedTree));
-            console.log('[BulkTranslate] Saved to localStorage');
-        } catch (e) {
-            console.error('[BulkTranslate] Failed to save to localStorage:', e);
-        }
-
-        // Sync to DB immediately after bulk translation
-        const syncResult = await bulkSyncTreeToDb(updatedTree);
-        if (syncResult.success) {
-            refreshDb();
-            alert("Bulk Translation Successful! All members updated in database.");
-        } else {
-            console.error('[BulkTranslate] DB sync error:', syncResult.error);
-            alert(`Translation complete locally, but failed to sync with database.\n\nError: ${syncResult.error}\n\nHint: If the error mentions 'translations' column, run the SQL script: supabase_schema_v5_translations_fix.sql`);
-        }
-    } catch (error: any) {
-        console.error("Bulk translation failed:", error);
-        alert("Bulk translation failed.\nError: " + error.message);
-    } finally {
-        setIsBulkTranslating(false);
-        setTranslationProgress(null);
-    }
-  };
-
-  const handleUndo = useCallback(async () => {
-    if (!canUndo) return;
-    const previousState = undo();
-    if (previousState) {
-      setCurrentData(previousState);
-      refreshLayoutRef.current(previousState);
-      if (user.role === 'ADMIN') {
-        const success = await bulkSyncTreeToDb(previousState);
-        if (success) refreshDb();
-      }
-    }
-  }, [canUndo, undo, user.role, refreshDb]);
-
-  const handleRedo = useCallback(async () => {
-    if (!canRedo) return;
-    const nextState = redo();
-    if (nextState) {
-      setCurrentData(nextState);
-      refreshLayoutRef.current(nextState);
-      if (user.role === 'ADMIN') {
-        const success = await bulkSyncTreeToDb(nextState);
-        if (success) refreshDb();
-      }
-    }
-  }, [canRedo, redo, user.role, refreshDb]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
-
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-            handleRedo();
-        } else {
-            handleUndo();
-        }
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault();
-        handleRedo();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
-
-  // Effect 2: Re-layout whenever currentData or visual settings change
-  useEffect(() => {
-    if (currentData.name !== 'Loading…') {
-      refreshLayout(currentData);
-    }
-  }, [currentData, refreshLayout]);
+  const handlePrint = useCallback(() => { window.print(); }, []);
 
   const handleResetFromBackup = useCallback(() => {
-    if (confirm("This will clear your recent changes and reload the data from the 'backup' folder. Continue?")) {
+    if (confirm("Reload from backup?")) {
       localStorage.removeItem('vanshavali_data_v3');
       window.location.reload();
     }
   }, []);
 
-  useEffect(() => {
-    document.body.className = theme === 'rajashahi' ? 'rajashahi' : '';
-  }, [theme]);
-
   return (
     <div className={clsx(
       "w-full h-screen relative",
-      theme === 'dark' && 'dark',
-      theme === 'rajashahi' && 'rajashahi',
-      `font-scale-${fontScale}`
+      prefs.theme === 'dark' && 'dark',
+      prefs.theme === 'rajashahi' && 'rajashahi',
+      `font-scale-${prefs.fontScale}`
     )}>
       <div className="w-full h-full bg-slate-50 dark:bg-slate-950 rajashahi:bg-[#fff9f0] transition-colors duration-500">
         {/* Top Controls Container */}
@@ -761,7 +352,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                     <span className="text-[11px] font-bold truncate">{t.community}</span>
                   </button>
                   <button
-                    onClick={() => setIsEditingHeader(true)}
+                    onClick={() => prefs.setIsEditingHeader(true)}
                     className="w-full flex items-center justify-center gap-1.5 bg-purple-600 px-2 py-1.5 rounded-lg shadow-md border border-purple-700 hover:bg-purple-700 text-white font-medium transition-colors"
                   >
                     <Palette size={16} />
@@ -781,10 +372,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
             {/* Center: Cultural Heading (Responsive Scaling) */}
             <div className="flex-1 flex flex-col items-center text-center pointer-events-auto mt-1 sm:mt-2 px-1">
               <p className="hidden sm:block text-[9px] sm:text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 rajashahi:text-amber-800/90 italic leading-tight sm:leading-relaxed max-w-2xl">
-                {headerVerse}
+                {prefs.headerVerse}
               </p>
               <h1 className="text-lg sm:text-4xl font-black tracking-tighter text-gray-900 dark:text-white rajashahi:text-[#800000] drop-shadow-md mt-1 flex items-center gap-1 sm:gap-2">
-                {headerTitle} <span className="hidden sm:inline text-blue-600 rajashahi:text-[#ffd700]">|</span>
+                {prefs.headerTitle} <span className="hidden sm:inline text-blue-600 rajashahi:text-[#ffd700]">|</span>
               </h1>
             </div>
 
@@ -809,16 +400,16 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                     <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tight">Branch</span>
                     <input
                       type="color"
-                      value={edgeColor}
-                      onChange={(e) => setEdgeColor(e.target.value)}
+                      value={prefs.edgeColor}
+                      onChange={(e) => prefs.setEdgeColor(e.target.value)}
                       className="w-3 h-3 rounded cursor-pointer border-none bg-transparent"
                       title="Branch Color"
                       aria-label="Branch Color"
                     />
                   </div>
                   <select
-                    value={edgeWidth}
-                    onChange={(e) => setEdgeWidth(parseInt(e.target.value))}
+                    value={prefs.edgeWidth}
+                    onChange={(e) => prefs.setEdgeWidth(parseInt(e.target.value))}
                     className="bg-transparent text-[9px] font-black outline-none text-gray-700 dark:text-gray-300 border-none px-0.5 cursor-pointer w-full text-center"
                     title="Branch Thickness"
                     aria-label="Branch Thickness"
@@ -828,7 +419,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                 </div>
 
                 <button
-                  onClick={handleFocusRoot}
+                  onClick={focusRoot}
                   className="w-full flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1.5 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   <Maximize size={16} />
@@ -899,17 +490,17 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
 
                 {/* Theme Toggle Vertical */}
                 <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 flex flex-col gap-1 w-full">
-                  <button onClick={() => setTheme('light')} title="Light Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", theme === 'light' ? "bg-blue-600 text-white" : "hover:bg-gray-100 text-gray-500")}>
+                  <button onClick={() => prefs.setTheme('light')} title="Light Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", prefs.theme === 'light' ? "bg-blue-600 text-white" : "hover:bg-gray-100 text-gray-500")}>
                     <Sun size={14} />
                   </button>
-                  <button onClick={() => setTheme('dark')} title="Dark Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", theme === 'dark' ? "bg-blue-600 text-white" : "hover:bg-slate-700 text-gray-400")}>
+                  <button onClick={() => prefs.setTheme('dark')} title="Dark Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", prefs.theme === 'dark' ? "bg-blue-600 text-white" : "hover:bg-slate-700 text-gray-400")}>
                     <Moon size={14} />
                   </button>
-                  <button onClick={() => setTheme('rajashahi')} title="Royal Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", theme === 'rajashahi' ? "bg-orange-600 text-white" : "hover:bg-orange-50 text-orange-600")}>
+                  <button onClick={() => prefs.setTheme('rajashahi')} title="Royal Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", prefs.theme === 'rajashahi' ? "bg-orange-600 text-white" : "hover:bg-orange-50 text-orange-600")}>
                     <Palette size={14} />
                   </button>
-                  <button onClick={() => setIsPrivacyMode(!isPrivacyMode)} title={isPrivacyMode ? "Disable Privacy Mode" : "Enable Privacy Mode"} className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", isPrivacyMode ? "bg-red-500 text-white" : "hover:bg-red-50 text-red-500")}>
-                    {isPrivacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
+                  <button onClick={() => prefs.setIsPrivacyMode(!prefs.isPrivacyMode)} title={prefs.isPrivacyMode ? "Disable Privacy Mode" : "Enable Privacy Mode"} className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", prefs.isPrivacyMode ? "bg-red-500 text-white" : "hover:bg-red-50 text-red-500")}>
+                    {prefs.isPrivacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
 
@@ -918,10 +509,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                   {(['sm', 'md', 'lg'] as const).map(scale => (
                     <button
                       key={scale}
-                      onClick={() => setFontScale(scale)}
+                      onClick={() => prefs.setFontScale(scale)}
                       className={clsx(
                         "py-1 rounded-md text-[9px] font-black transition-all text-center",
-                        fontScale === scale ? "bg-blue-600 text-white" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
+                        prefs.fontScale === scale ? "bg-blue-600 text-white" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
                       )}
                     >
                       {scale === 'sm' ? "A" : scale === 'md' ? "A+" : "A++"}
@@ -934,8 +525,8 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
                   {(['EN', 'HI', 'GU'] as const).map(lang => (
                     <button
                       key={lang}
-                      onClick={() => setLanguage(lang)}
-                      className={`py-1 rounded text-[9px] font-black transition-all text-center ${language === lang ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+                      onClick={() => prefs.setLanguage(lang)}
+                      className={`py-1 rounded text-[9px] font-black transition-all text-center ${prefs.language === lang ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
                     >
                       {lang}
                     </button>
@@ -965,19 +556,16 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
             currentNodeId={selectedNodeId}
             treeData={currentData}
             onNavigate={handleFocusNode}
-            language={language}
+            language={prefs.language}
         />
 
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          nodes={layout.nodes}
+          edges={layout.edges}
+          onNodesChange={layout.onNodesChange}
+          onEdgesChange={layout.onEdgesChange}
           onNodeClick={(_, node) => handleFocusNode(node.id)}
-          onPaneClick={() => {
-            setSelectedNodeId(null);
-            setHighlightedPath([]);
-          }}
+          onPaneClick={clearSelection}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -998,269 +586,85 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           person={editingPerson}
           onClose={() => setEditingPerson(null)}
           onSave={handleSaveEdit}
-          language={language}
+          language={prefs.language}
           userRole={user.role}
         />
 
         {viewPerson && (
           <ViewPersonModal
             person={viewPerson}
-            language={language}
-            theme={theme}
-            fontScale={fontScale}
+            language={prefs.language}
+            theme={prefs.theme}
+            fontScale={prefs.fontScale}
             isPrivacyMode={user.role === 'VIEW_ONLY'}
             onClose={() => setViewPerson(null)}
           />
         )}
 
         <SearchSidebar
-          nodes={nodes}
+          nodes={layout.nodes}
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
           onFocusNode={handleFocusNode}
-          language={language}
+          language={prefs.language}
         />
 
         <TimelineView
-          nodes={nodes}
+          nodes={layout.nodes}
           isOpen={isTimelineOpen}
           onClose={() => setIsTimelineOpen(false)}
           onFocusNode={handleFocusNode}
-          language={language}
+          language={prefs.language}
         />
 
         <CommunityDashboard
           isOpen={isCommunityOpen}
           onClose={() => setIsCommunityOpen(false)}
-          language={language}
+          language={prefs.language}
         />
 
-        {/* Header Editor Modal */}
-        {isEditingHeader && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-all duration-300">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 animate-in fade-in zoom-in duration-300">
-              <div className="bg-gradient-to-r from-purple-600 to-indigo-700 px-6 py-5 flex justify-between items-center">
-                <h2 className="text-xl font-black text-white flex items-center gap-2">
-                  <Palette size={24} />
-                  Customize Header Text
-                </h2>
-              </div>
+        <HeaderEditor
+          isOpen={prefs.isEditingHeader}
+          headerVerse={prefs.headerVerse}
+          headerTitle={prefs.headerTitle}
+          setHeaderVerse={prefs.setHeaderVerse}
+          setHeaderTitle={prefs.setHeaderTitle}
+          onClose={() => prefs.setIsEditingHeader(false)}
+          onSave={prefs.handleSaveHeader}
+        />
 
-              <form onSubmit={handleSaveHeader} className="p-6 space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Sanskrit Verse / Subtitle</label>
-                  <textarea
-                    value={headerVerse}
-                    onChange={(e) => setHeaderVerse(e.target.value)}
-                    rows={3}
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-purple-500 outline-none transition-all text-sm font-medium leading-relaxed dark:text-white"
-                    placeholder="Enter the cultural verse..."
-                  />
-                </div>
+        <NavigationDrawers
+          isLeftDrawerOpen={isLeftDrawerOpen}
+          isRightDrawerOpen={isRightDrawerOpen}
+          setIsLeftDrawerOpen={setIsLeftDrawerOpen}
+          setIsRightDrawerOpen={setIsRightDrawerOpen}
+          user={user}
+          t={t}
+          language={prefs.language}
+          setLanguage={prefs.setLanguage}
+          theme={prefs.theme}
+          setTheme={prefs.setTheme}
+          setIsSearchOpen={setIsSearchOpen}
+          setIsTimelineOpen={setIsTimelineOpen}
+          setIsCommunityOpen={setIsCommunityOpen}
+          setIsEditingHeader={prefs.setIsEditingHeader}
+          handleDataLoaded={handleDataLoaded}
+          handleExport={handleExport}
+          handleExportImage={handleExportImage}
+          handleExportPDF={handleExportPDF}
+          handlePrint={handlePrint}
+          handleReset={handleReset}
+          onLogout={onLogout}
+        />
 
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Main Application Title</label>
-                  <input
-                    type="text"
-                    value={headerTitle}
-                    onChange={(e) => setHeaderTitle(e.target.value)}
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-purple-500 outline-none transition-all text-lg font-black dark:text-white"
-                    placeholder="Enter title..."
-                  />
-                </div>
-
-                <div className="flex gap-3 justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingHeader(false)}
-                    className="px-6 py-2.5 rounded-xl font-bold text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-purple-600 hover:bg-purple-700 text-white font-black px-8 py-2.5 rounded-xl shadow-lg shadow-purple-500/30 active:scale-95 transition-all text-sm"
-                  >
-                    Apply Changes
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Mobile Left Drawer */}
-        {isLeftDrawerOpen && (
-          <div className="fixed inset-0 z-[100] sm:hidden">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsLeftDrawerOpen(false)} />
-            <div className="absolute top-0 left-0 h-full w-64 bg-white dark:bg-slate-900 shadow-2xl p-4 animate-in slide-in-from-left duration-300">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-black text-xs uppercase tracking-widest text-gray-400">Actions</h3>
-                <button onClick={() => setIsLeftDrawerOpen(false)} title="Close Menu" aria-label="Close Menu"><X size={20} className="text-gray-500" /></button>
-              </div>
-              <div className="flex flex-col gap-3">
-                <button onClick={() => { setIsSearchOpen(true); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-blue-600 p-3 rounded-xl text-white font-bold"><SearchIcon size={20} />{t.findPerson}</button>
-                <button onClick={() => { setIsTimelineOpen(true); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-orange-600 dark:text-orange-400 font-bold"><Calendar size={20} />{t.timeline}</button>
-                {user.role === 'ADMIN' && (
-                  <>
-                    <FileUpload onDataLoaded={handleDataLoaded} />
-                    <button onClick={() => { handleExport(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 font-bold"><Download size={20} />{t.export} (JSON)</button>
-                    <button onClick={() => { handleExportImage(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 font-bold"><Download size={20} />Export Image</button>
-                    <button onClick={() => { handleExportPDF(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-red-600 font-bold"><Download size={20} />Export PDF</button>
-                    <button onClick={() => { handlePrint(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-bold"><Printer size={20} />Print Tree</button>
-                    <button onClick={() => { setIsCommunityOpen(true); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-700 p-3 rounded-xl text-white font-bold"><Users size={20} />{t.community}</button>
-                    <button onClick={() => { setIsEditingHeader(true); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-purple-600 p-3 rounded-xl text-white font-bold"><Palette size={20} />Header Editor</button>
-                    <button onClick={() => { handleReset(); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-red-600 font-bold"><RotateCcw size={20} />{t.reset}</button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Mobile Right Drawer */}
-        {isRightDrawerOpen && (
-          <div className="fixed inset-0 z-[100] sm:hidden">
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsRightDrawerOpen(false)} />
-            <div className="absolute top-0 right-0 h-full w-64 bg-white dark:bg-slate-900 shadow-2xl p-4 animate-in slide-in-from-right duration-300">
-              <div className="flex justify-between items-center mb-6">
-                <button onClick={() => setIsRightDrawerOpen(false)} title="Close Settings" aria-label="Close Settings"><X size={20} className="text-gray-500" /></button>
-                <h3 className="font-black text-xs uppercase tracking-widest text-gray-400">Settings</h3>
-              </div>
-              <div className="flex flex-col gap-6">
-                <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Theme</label>
-                  <div className="grid grid-cols-1 gap-2">
-                    <button onClick={() => setTheme('light')} className={clsx("p-3 rounded-xl flex items-center gap-3 font-bold", theme === 'light' ? "bg-blue-600 text-white" : "bg-gray-50 dark:bg-slate-800 text-gray-500")}><Sun size={18} />Light</button>
-                    <button onClick={() => setTheme('dark')} className={clsx("p-3 rounded-xl flex items-center gap-3 font-bold", theme === 'dark' ? "bg-blue-600 text-white" : "bg-gray-50 dark:bg-slate-800 text-gray-400")}><Moon size={18} />Dark</button>
-                    <button onClick={() => setTheme('rajashahi')} className={clsx("p-3 rounded-xl flex items-center gap-3 font-bold", theme === 'rajashahi' ? "bg-orange-600 text-white" : "bg-orange-50/50 dark:bg-orange-900/10 text-orange-600")}><Palette size={18} />Royal</button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Language</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {['EN', 'HI', 'GU'].map(lang => (
-                      <button key={lang} onClick={() => setLanguage(lang as any)} className={clsx("py-2 rounded-lg text-xs font-black", language === lang ? "bg-blue-600 text-white" : "bg-gray-50 dark:bg-slate-800 text-gray-500")}>{lang}</button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-gray-100 dark:border-slate-800">
-                  <button onClick={onLogout} className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl bg-red-50 dark:bg-red-900/10 text-red-600 font-black"><LogOut size={20} />Logout</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      {/* Progress Overlay for Bulk Translation */}
-      {translationProgress && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[200] flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-gray-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
-                  <div className="flex flex-col items-center text-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                          <Wand2 size={24} className="animate-pulse" />
-                      </div>
-                      <div>
-                          <h3 className="font-bold text-gray-900 dark:text-white">AI Bulk Translation</h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                              Processing your family tree...
-                          </p>
-                      </div>
-                      
-                      {/* Progress Bar Container */}
-                      <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden mt-2">
-                          <div 
-                              id="ai-translation-progress-bar"
-                              className="bg-purple-500 h-full transition-all duration-500"
-                          />
-                      </div>
-                      
-                      <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                          {translationProgress.current} OF {translationProgress.total} MEMBERS
-                      </div>
-                  </div>
-              </div>
-          </div>
-      )}
+        <TranslationOverlay progress={translationProgress} />
+      </div>
     </div>
-  </div >
-);
+  );
 };
 
 export default function App() {
-  const [user, setUser] = useState<UserData | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    // Fast synchronous-like session check
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error("Auth session check error:", error);
-        if (isMounted) setAuthLoading(false);
-        return;
-      }
-      
-      if (session?.user) {
-        // Fire and forget, DO NOT await to prevent deadlock
-        if (isMounted) loadUserRole(session.user);
-      } else {
-        if (isMounted) setAuthLoading(false);
-      }
-    }).catch(e => {
-        console.error("Auth throw error:", e);
-        if (isMounted) setAuthLoading(false);
-    });
-
-    // Listen for auth changes independently
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!isMounted) return;
-      if (session?.user) {
-        // DO NOT use async/await here to avoid blocking Supabase's internal auth event loop
-        loadUserRole(session.user);
-      } else {
-        setUser(null);
-        setAuthLoading(false);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const loadUserRole = async (authUser: any) => {
-    try {
-      const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', authUser.id)
-          .single();
-      
-      // We typecast, but assume it's one of the UserRole strings
-      setUser({
-        email: authUser.email,
-        role: (profile?.role as any) || 'VIEW_ONLY'
-      });
-    } catch (e) {
-      console.error("Failed to load user role:", e);
-      setUser({ email: authUser.email, role: 'VIEW_ONLY' });
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleLogin = (userData: UserData) => {
-    setUser(userData);
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-  };
+  const { user, authLoading, handleLogin, handleLogout } = useAuthSession();
 
   if (authLoading) {
       return (

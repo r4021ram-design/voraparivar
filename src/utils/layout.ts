@@ -57,10 +57,10 @@ export const processTreeToElements = (root: Person) => {
         });
 
         if (person.children && !person.isCollapsed) {
-            // Sorting children: 
+            // Sorting children (non-mutating — sort a copy to avoid corrupting tree state):
             // 1. Priority: Manual sort_order (if set)
             // 2. Fallback: dateOfBirth
-            person.children.sort((a, b) => {
+            const sortedChildren = [...person.children].sort((a, b) => {
                 // If both have explicit sort_order, compare them
                 if (a.sort_order != null && b.sort_order != null) {
                     return a.sort_order - b.sort_order;
@@ -76,7 +76,7 @@ export const processTreeToElements = (root: Person) => {
                 return 0;
             });
 
-            person.children.forEach((child, index) => {
+            sortedChildren.forEach((child, index) => {
                 initialEdges.push({
                     id: `e${person.id}-${child.id}`,
                     source: person.id,
@@ -84,7 +84,7 @@ export const processTreeToElements = (root: Person) => {
                     type: 'customEdge',
                     animated: false,
                 });
-                traverse(child, depth + 1, index + 1, person.children.length > 1);
+                traverse(child, depth + 1, index + 1, sortedChildren.length > 1);
             });
         }
     };

@@ -12,7 +12,7 @@ interface ViewPersonModalProps {
     onClose: () => void;
 }
 
-const DetailRow = ({ icon: Icon, label, value }: { icon: any, label: string, value?: string }) => {
+const DetailRow = ({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?: number; className?: string }>, label: string, value?: string }) => {
     if (!value) return null;
     return (
         <div className="flex items-center gap-2 mb-1">

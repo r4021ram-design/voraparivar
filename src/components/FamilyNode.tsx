@@ -1,11 +1,12 @@
 import { memo } from 'react';
-import { Handle, Position } from 'reactflow';
+import { Handle, Position, type NodeProps } from 'reactflow';
 import { User, Heart, Trash2, Plus, Minus } from 'lucide-react';
 import clsx from 'clsx';
 import type { Language } from '../i18n';
 import { translations, getTranslatedContent } from '../i18n';
+import type { FamilyNodeData } from '../features/family-tree/types';
 
-const FamilyNode = ({ data, isConnectable }: any) => {
+const FamilyNode = ({ data, isConnectable }: NodeProps<FamilyNodeData>) => {
     const { person, onEdit, onDelete, language = 'EN', theme, fontScale, onAddChild, onToggleExpand, onAddParent, onViewDetails, isHighlighted, childOrder, hasSiblings } = data;
     const t = translations[language as Language];
 

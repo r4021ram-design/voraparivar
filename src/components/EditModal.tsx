@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { Person } from '../types';
 import { translations, type Language } from '../i18n';
 import { translateWithGemini } from '../utils/gemini';
+import { transliterateText } from '../utils/transliterate';
 
 interface EditModalProps {
     person: Person | null;
@@ -55,7 +56,26 @@ const EditModal = ({ person, onClose, onSave, language = 'EN', userRole }: EditM
     if (!person || !formData) return null;
 
     const handleSave = () => {
-        onSave(formData);
+        if (!formData) return;
+        
+        // Sync manual edits to the current language translation layer
+        // This fixes the bug where manual edits in Hindi/Gujarati don't show up in the UI
+        let finalData = { ...formData };
+        if (language !== 'EN') {
+            const updatedTranslations = { ...formData.translations };
+            updatedTranslations[language] = {
+                ...updatedTranslations[language],
+                name: formData.name,
+                occupation: formData.occupation,
+                relation: formData.relation,
+                bio: formData.bio,
+                spouse: formData.spouse,
+                spouseOccupation: formData.spouseOccupation
+            };
+            finalData.translations = updatedTranslations;
+        }
+
+        onSave(finalData);
         onClose();
     };
 
@@ -87,8 +107,26 @@ const EditModal = ({ person, onClose, onSave, language = 'EN', userRole }: EditM
                 alert("Nothing to translate.");
             }
         } catch (error: any) {
-            console.error("Translation failed:", error);
-            alert("Translation failed. Make sure your API key is correct in .env\nError: " + error.message);
+            console.error("Translation failed, trying fallback...", error);
+            // Fallback to Google Transliterate for Names and basics
+            try {
+                const hiName = await transliterateText(formData.name, 'HI');
+                const guName = await transliterateText(formData.name, 'GU');
+                const hiSpouse = formData.spouse ? await transliterateText(formData.spouse, 'HI') : undefined;
+                const guSpouse = formData.spouse ? await transliterateText(formData.spouse, 'GU') : undefined;
+
+                setFormData(prev => prev ? {
+                    ...prev,
+                    translations: {
+                        EN: { ...prev.translations?.EN, name: formData.name, spouse: formData.spouse },
+                        HI: { ...prev.translations?.HI, name: hiName, spouse: hiSpouse },
+                        GU: { ...prev.translations?.GU, name: guName, spouse: guSpouse }
+                    }
+                } : null);
+                alert("AI Translation failed, but used Local Transliteration for names.");
+            } catch (fallbackErr: any) {
+                alert("Translation failed. Make sure your API key is correct in .env\nError: " + error.message);
+            }
         } finally {
             setIsTranslating(false);
         }

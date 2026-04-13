@@ -27,7 +27,15 @@ A React + TypeScript + Vite application for managing and visualizing a family tr
 - Family tree visualization
 - Member details management
 - Search functionality
-- Supabase integration (in progress)
+- Supabase integration
+
+## Documentation
+
+For a deeper dive into how this app is structured, see the following documentation:
+- [Architecture](docs/architecture.md)
+- [Data Flow](docs/data-flow.md)
+- [Tree Model](docs/tree-model.md)
+- [Refactoring History](docs/refactor-history.md)
 
 ## Tech Stack
 

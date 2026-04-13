@@ -5,28 +5,37 @@ export interface ValidationResult {
     errors: string[];
 }
 
-export function validatePerson(node: any, path: string = 'root'): ValidationResult {
+interface TreeNode {
+    id?: string;
+    name?: string;
+    children?: TreeNode[];
+    [key: string]: unknown;
+}
+
+export function validatePerson(node: unknown, path: string = 'root'): ValidationResult {
     const errors: string[] = [];
 
-    if (!node) {
+    if (!node || typeof node !== 'object') {
         return { valid: false, errors: [`${path}: Node is null or undefined`] };
     }
 
-    if (!node.id) errors.push(`${path}: missing 'id'`);
-    if (!node.name || typeof node.name !== 'string') errors.push(`${path}: missing or invalid 'name'`);
-    if (node.children && !Array.isArray(node.children)) {
+    const tree = node as TreeNode;
+
+    if (!tree.id) errors.push(`${path}: missing 'id'`);
+    if (!tree.name || typeof tree.name !== 'string') errors.push(`${path}: missing or invalid 'name'`);
+    if (tree.children && !Array.isArray(tree.children)) {
         errors.push(`${path}: 'children' must be an array`);
     }
     
     // Check circular references within the data structure itself
-    const res = hasCircularRef(node);
+    const res = hasCircularRef(tree);
     if (res) {
         errors.push(`${path}: Circular dependency detected involving node '${res}'`);
     }
 
     // Recursive validate children
-    if (Array.isArray(node.children)) {
-        node.children.forEach((child: any, i: number) => {
+    if (Array.isArray(tree.children)) {
+        tree.children.forEach((child: TreeNode, i: number) => {
             const childResult = validatePerson(child, `${path}.children[${i}]`);
             errors.push(...childResult.errors);
         });
@@ -37,7 +46,7 @@ export function validatePerson(node: any, path: string = 'root'): ValidationResu
 
 // Check for circular dependencies in any tree structure.
 // Returns the ID of the node causing the cycle, or null if no cycle exists.
-export function hasCircularRef(node: any, visited = new Set<string>()): string | null {
+export function hasCircularRef(node: TreeNode, visited = new Set<string>()): string | null {
     if (!node) return null;
     if (node.id && visited.has(node.id)) return node.id;
     

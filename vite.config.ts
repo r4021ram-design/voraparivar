@@ -4,25 +4,33 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   build: {
+    outDir: 'dist',
+    chunkSizeWarningLimit: 2000,
+    minify: 'esbuild',
+    commonjsOptions: {
+      transformMixedEsModules: true,
+      ignoreDynamicRequires: true,
+      include: [/node_modules/],
+      exclude: [/\.esm\.js$/], // Don't try to CJS-transform ESM files
+    },
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          // ReactFlow + dagre (graph rendering engine)
-          if (id.includes('reactflow') || id.includes('dagre') || id.includes('@reactflow')) {
+          // Graph rendering engine (Heavy CJS)
+          if (id.includes('dagre')) {
+            return 'vendor-dagre';
+          }
+          // ReactFlow (Types & Flow logic)
+          if (id.includes('reactflow') || id.includes('@reactflow')) {
             return 'vendor-reactflow';
           }
           // Supabase client
           if (id.includes('@supabase')) {
             return 'vendor-supabase';
           }
-          // Icon library
-          if (id.includes('lucide-react')) {
-            return 'vendor-icons';
-          }
-          // html-to-image (export feature)
-          if (id.includes('html-to-image')) {
-            return 'vendor-export';
-          }
+          // Other distinct vendors
+          if (id.includes('lucide-react')) return 'vendor-icons';
+          if (id.includes('jspdf')) return 'vendor-pdf';
         },
       },
     },

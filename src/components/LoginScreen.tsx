@@ -1,14 +1,10 @@
 import { useState } from 'react';
 import { User, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { UserRole, UserData } from '../types/auth';
 
-// User Roles
-export type UserRole = 'ADMIN' | 'STANDARD' | 'VIEW_ONLY';
-
-export interface UserData {
-    email: string;
-    role: UserRole;
-}
+// Re-export for backward compatibility (App.tsx imports from here)
+export type { UserRole, UserData };
 
 interface LoginScreenProps {
     onLogin: (user: UserData) => void;

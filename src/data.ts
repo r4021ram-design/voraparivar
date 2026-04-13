@@ -1,11 +1,13 @@
 import type { Person } from './types';
 import { validatePerson } from './utils/validateTree';
 
-const addGenerations = (node: any, gen: number): Person => {
+const addGenerations = (node: Partial<Person> & { children?: Partial<Person>[] }, gen: number): Person => {
     return {
         ...node,
+        id: node.id ?? 'root',
+        name: node.name ?? '',
         generation: node.generation != null ? node.generation : gen,
-        children: (node.children || []).map((child: any) => addGenerations(child, gen + 1))
+        children: (node.children || []).map((child) => addGenerations(child, gen + 1))
     };
 };
 

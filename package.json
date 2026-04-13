@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "tsc -b && vite build",
+    "build": "set NODE_OPTIONS=--max-old-space-size=4096 && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -37,6 +37,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.1.4"
   }
 }

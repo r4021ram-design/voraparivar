@@ -1,5 +1,6 @@
 import type { Person } from '../types';
 import { getTranslatedContent } from '../i18n';
+import { transliterateText } from './transliterate';
 
 /**
  * Recursively flattens the family tree into an array of Person objects.
@@ -74,9 +75,17 @@ export const bulkTranslateTree = async (
     for (let i = 0; i < allPersons.length; i++) {
         const p = allPersons[i];
 
-        const hiName = localTranslate(p.name, 'HI');
-        const guName = localTranslate(p.name, 'GU');
+        let hiName = localTranslate(p.name, 'HI');
+        let guName = localTranslate(p.name, 'GU');
         
+        // If not in local dictionary, use Google Transliterate API (Free)
+        if (!hiName || hiName === p.name) {
+            hiName = await transliterateText(p.name, 'HI');
+        }
+        if (!guName || guName === p.name) {
+            guName = await transliterateText(p.name, 'GU');
+        }
+
         // Check if at least the name was actually translated (different from original)
         const nameTranslated = (hiName && hiName !== p.name) || (guName && guName !== p.name);
 

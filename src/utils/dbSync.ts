@@ -1,43 +1,18 @@
 import { supabase } from '../lib/supabase';
 import type { Person } from '../types';
+import { flattenTreeToRows } from '../features/family-tree/services/treeMapper';
 
-export const flattenTreeForDb = (root: Person, parentId: string | null = null): any[] => {
-    const row = {
-        id: root.id,
-        parent_id: parentId,
-        name: root.name,
-        gender: root.gender,
-        relation: root.relation || null,
-        generation: root.generation || 1,
-        bio: root.bio || null,
-        occupation: root.occupation || null,
-        dob: root.dateOfBirth || null,
-        dod: root.dateOfDeath || null,
-        phone: root.phoneNumber || null,
-        spouse_name: root.spouse || null,
-        spouse_occupation: root.spouseOccupation || null,
-        spouse_phone: root.spousePhoneNumber || null,
-        spouse_dob: root.spouseDateOfBirth || null,
-        spouse_dod: root.spouseDateOfDeath || null,
-        location_name: root.location?.name || null,
-        location_lat: root.location?.lat || null,
-        location_lng: root.location?.lng || null,
-        translations: root.translations || null,
-        sort_order: root.sort_order || null
-    };
-
-    let rows = [row];
-    if (root.children) {
-        for (const child of root.children) {
-            rows = rows.concat(flattenTreeForDb(child, root.id));
-        }
-    }
-    return rows;
+/**
+ * @deprecated Use flattenTreeToRows from treeMapper instead.
+ * Kept as a thin re-export for any external callers.
+ */
+export const flattenTreeForDb = (root: Person, parentId: string | null = null) => {
+    return flattenTreeToRows(root, parentId);
 };
 
 export const bulkSyncTreeToDb = async (root: Person): Promise<{ success: boolean; error?: string }> => {
     try {
-        const rows = flattenTreeForDb(root);
+        const rows = flattenTreeToRows(root);
 
         // 1. Upsert all valid rows from the snapshot
         const { error: upsertError } = await supabase.from('people').upsert(rows);
