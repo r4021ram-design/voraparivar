@@ -76,7 +76,10 @@ export const processTreeToElements = (root: Person) => {
                 return 0;
             });
 
-            sortedChildren.forEach((child, index) => {
+            // To force Left-to-Right visual rendering in Dagre (which naturally renders Right-to-Left when fed sequentially),
+            // we iterate in reverse, but pass the correct logical index structure so numbers remain 1 -> 2 -> 3
+            [...sortedChildren].reverse().forEach((child) => {
+                const logicalIndex = sortedChildren.indexOf(child);
                 initialEdges.push({
                     id: `e${person.id}-${child.id}`,
                     source: person.id,
@@ -84,7 +87,7 @@ export const processTreeToElements = (root: Person) => {
                     type: 'customEdge',
                     animated: false,
                 });
-                traverse(child, depth + 1, index + 1, sortedChildren.length > 1);
+                traverse(child, depth + 1, logicalIndex + 1, sortedChildren.length > 1);
             });
         }
     };
