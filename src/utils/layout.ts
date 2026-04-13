@@ -6,7 +6,10 @@ const nodeWidth = 250;
 const nodeHeight = 150;
 
 export const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
-    const dagreGraph = new dagre.graphlib.Graph();
+    // Vite/Rollup CJS interop for dagre
+    const d = (dagre as any).default ? (dagre as any).default : dagre;
+    
+    const dagreGraph = new d.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
 
     dagreGraph.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 100 }); // Top-to-Bottom
@@ -19,7 +22,7 @@ export const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
         dagreGraph.setEdge(edge.source, edge.target);
     });
 
-    dagre.layout(dagreGraph);
+    d.layout(dagreGraph);
 
     const layoutedNodes = nodes.map((node) => {
         const nodeWithPosition = dagreGraph.node(node.id);
