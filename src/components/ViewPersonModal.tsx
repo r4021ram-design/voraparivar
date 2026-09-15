@@ -154,7 +154,7 @@ export default function ViewPersonModal({
                             className="mt-4 px-4 py-2 rounded-full bg-white text-gray-900 hover:bg-white/90 text-xs font-black shadow-lg transition-transform active:scale-95 flex items-center gap-2"
                         >
                             <GitFork size={14} className="text-blue-600" />
-                            <span>{language === 'HI' ? 'रिश्ता कैलकुलेट करें' : 'Calculate Relationship'}</span>
+                            <span>{language === 'HI' ? 'रिश्ता कैलकुलेट करें' : language === 'GU' ? 'સંબંધ ગણતરી' : 'Calculate Relationship'}</span>
                         </button>
                     )}
                 </div>
@@ -166,7 +166,7 @@ export default function ViewPersonModal({
                         <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-800">
                             <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-1.5">
                                 <BookOpen size={14} />
-                                {language === 'HI' ? 'जीवन परिचय' : 'Biography'}
+                                {language === 'HI' ? 'जीवन परिचय' : language === 'GU' ? 'જીવનચરિત્ર' : 'Biography'}
                             </h3>
                             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic">
                                 "{translateContent(person.bio, 'bio')}"
@@ -177,7 +177,7 @@ export default function ViewPersonModal({
                     {/* Personal Details Table */}
                     <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-800">
                         <h3 className="text-xs font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-                            {language === 'HI' ? 'व्यक्तिगत विवरण' : 'Personal Details'}
+                            {language === 'HI' ? 'व्यक्तिगत विवरण' : language === 'GU' ? 'વ્યક્તિગત વિગતો' : 'Personal Details'}
                         </h3>
                         <div className="flex flex-col">
                             <DetailRow icon={Briefcase} label={t.occupation} value={translateContent(person.occupation, 'occupation')} />
@@ -186,10 +186,10 @@ export default function ViewPersonModal({
                                 <DetailRow icon={Calendar} label={t.deathDate} value={maskDate(person.dateOfDeath)} />
                             )}
                             {ageDisplay && (
-                                <DetailRow icon={User} label={person.dateOfDeath ? (language === 'HI' ? 'आयु (निधन समय)' : 'Age at passing') : (language === 'HI' ? 'वर्तमान आयु' : 'Current Age')} value={ageDisplay} />
+                                <DetailRow icon={User} label={person.dateOfDeath ? (language === 'HI' ? 'आयु (निधन समय)' : language === 'GU' ? 'ઉંમર (અવસાન સમયે)' : 'Age at passing') : (language === 'HI' ? 'वर्तमान आयु' : language === 'GU' ? 'વર્તમાન ઉંમર' : 'Current Age')} value={ageDisplay} />
                             )}
                             <DetailRow icon={Phone} label={t.phone} value={maskPhone(person.phoneNumber)} />
-                            <DetailRow icon={MapPin} label={language === 'HI' ? 'स्थान' : 'Location'} value={person.location?.name} />
+                            <DetailRow icon={MapPin} label={language === 'HI' ? 'स्थान' : language === 'GU' ? 'સ્થાન' : 'Location'} value={person.location?.name} />
                         </div>
                     </div>
 
@@ -206,7 +206,7 @@ export default function ViewPersonModal({
                                     <img src={person.spousePhotoUrl} alt="" className="w-12 h-12 rounded-full object-cover shadow-sm" />
                                 ) : (
                                     <div className="w-12 h-12 rounded-full bg-pink-200 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 font-bold flex items-center justify-center text-sm">
-                                        {person.spouse.trim().slice(0, 2).toUpperCase()}
+                                        {translateContent(person.spouse, 'spouse').trim().slice(0, 2).toUpperCase()}
                                     </div>
                                 )}
                                 <div>
@@ -236,33 +236,38 @@ export default function ViewPersonModal({
                     {person.children && person.children.length > 0 && (
                         <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-800">
                             <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">
-                                {language === 'HI' ? `संतान (${person.children.length})` : `Children (${person.children.length})`}
+                                {language === 'HI' ? `संतान (${person.children.length})` : language === 'GU' ? `સંતાન (${person.children.length})` : `Children (${person.children.length})`}
                             </h3>
                             <div className="flex flex-col gap-1.5 mt-2">
-                                {person.children.map(child => (
-                                    <button
-                                        key={child.id}
-                                        onClick={() => {
-                                            onFocusPerson?.(child.id);
-                                            onClose();
-                                        }}
-                                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-gray-100 dark:border-slate-700/60 flex items-center justify-between text-left transition-colors"
-                                    >
-                                        <div className="flex items-center gap-2.5">
-                                            <div className={clsx(
-                                                "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white",
-                                                child.gender === 'FEMALE' ? "bg-pink-500" : "bg-blue-500"
-                                            )}>
-                                                {child.name.slice(0, 1)}
+                                {person.children.map(child => {
+                                    const childName = child.translations?.[language]?.name || getTranslatedContent(child.name, language);
+                                    const childInitial = childName.trim().slice(0, 1).toUpperCase();
+                                    const genLabel = language === 'GU' ? 'પેઢી' : language === 'HI' ? 'पीढ़ी' : 'Gen';
+                                    return (
+                                        <button
+                                            key={child.id}
+                                            onClick={() => {
+                                                onFocusPerson?.(child.id);
+                                                onClose();
+                                            }}
+                                            className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-gray-100 dark:border-slate-700/60 flex items-center justify-between text-left transition-colors"
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <div className={clsx(
+                                                    "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white",
+                                                    child.gender === 'FEMALE' ? "bg-pink-500" : "bg-blue-500"
+                                                )}>
+                                                    {childInitial}
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{childName}</p>
+                                                    <p className="text-[10px] text-gray-400">{genLabel} {child.generation}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{child.name}</p>
-                                                <p className="text-[10px] text-gray-400">Gen {child.generation}</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={14} className="text-gray-400" />
-                                    </button>
-                                ))}
+                                            <ChevronRight size={14} className="text-gray-400" />
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
