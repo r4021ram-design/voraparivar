@@ -20,6 +20,7 @@ export interface FamilyNodeData {
     onDelete?: (personId: string) => void;
     onAddParent?: () => void;
     onViewDetails?: (person: Person) => void;
+    onKinshipSelect?: (person: Person) => void;
 
     // UI settings
     language: Language;
@@ -27,6 +28,8 @@ export interface FamilyNodeData {
     fontScale: FontScale;
     isPrivacyMode: boolean;
     isHighlighted: boolean;
+    isDimmed?: boolean;
+    isSelected?: boolean;
 }
 
 /** Strongly typed FamilyTree node. */

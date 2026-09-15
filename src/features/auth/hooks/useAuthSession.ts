@@ -38,7 +38,7 @@ export const useAuthSession = () => {
         let isMounted = true;
 
         // Fast synchronous-like session check
-        supabase.auth.getSession().then(({ data: { session }, error }: { data: { session: any }; error: any }) => {
+        supabase.auth.getSession().then(({ data: { session }, error }) => {
             if (error) {
                 console.error('Auth session check error:', error);
                 if (isMounted) setAuthLoading(false);
@@ -50,13 +50,13 @@ export const useAuthSession = () => {
             } else {
                 if (isMounted) setAuthLoading(false);
             }
-        }).catch((e: any) => {
+        }).catch((e: unknown) => {
             console.error('Auth throw error:', e);
             if (isMounted) setAuthLoading(false);
         });
 
         // Listen for auth changes independently
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!isMounted) return;
             if (session?.user) {
                 // DO NOT use async/await here to avoid blocking Supabase's internal auth event loop

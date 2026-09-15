@@ -7,6 +7,10 @@ import {
     togglePersonCollapse,
     addParentToTree,
     sortChildren,
+    getTreeStatistics,
+    setTreeCollapseByGeneration,
+    expandAllTree,
+    collapseToRoot,
 } from '../treeTransforms';
 import type { Person } from '../../../../types/person';
 
@@ -135,5 +139,35 @@ describe('sortChildren', () => {
         ];
         sortChildren(children);
         expect(children[0].id).toBe('a'); // unchanged
+    });
+});
+
+describe('getTreeStatistics', () => {
+    it('calculates total members, max generation, living and deceased counts', () => {
+        const stats = getTreeStatistics(sampleTree);
+        expect(stats.totalMembers).toBe(5);
+        expect(stats.maxGeneration).toBe(3);
+        expect(stats.maleCount).toBe(5);
+        expect(stats.livingCount).toBe(5);
+    });
+});
+
+describe('setTreeCollapseByGeneration', () => {
+    it('collapses nodes beyond specified max generation', () => {
+        const collapsed = setTreeCollapseByGeneration(sampleTree, 2);
+        expect(collapsed.isCollapsed).toBe(false);
+        expect(collapsed.children[0].isCollapsed).toBe(true);
+    });
+
+    it('expands all nodes with expandAllTree', () => {
+        const collapsed = setTreeCollapseByGeneration(sampleTree, 2);
+        const expanded = expandAllTree(collapsed);
+        expect(expanded.isCollapsed).toBe(false);
+        expect(expanded.children[0].isCollapsed).toBe(false);
+    });
+
+    it('collapses to root', () => {
+        const rootCollapsed = collapseToRoot(sampleTree);
+        expect(rootCollapsed.isCollapsed).toBe(true);
     });
 });

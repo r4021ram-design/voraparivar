@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -7,16 +7,12 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
-  Download, RotateCcw, LogOut, Search as SearchIcon,
-  Settings,
-  Menu,
-  Calendar, Moon, Sun, Maximize, Palette, Printer, Users, CloudUpload, Eye, EyeOff, Undo, Redo, Wand2, Loader2
+  Palette, Menu
 } from 'lucide-react';
 import clsx from 'clsx';
 
 import FamilyNode from './components/FamilyNode';
 import CustomEdge from './components/CustomEdge';
-import FileUpload from './components/FileUpload';
 import EditModal from './components/EditModal';
 import ViewPersonModal from './components/ViewPersonModal';
 import LoginScreen from './components/LoginScreen';
@@ -25,6 +21,9 @@ import SearchSidebar from './components/SearchSidebar';
 import TimelineView from './components/TimelineView';
 import CommunityDashboard from './components/CommunityDashboard';
 import Breadcrumbs from './components/Breadcrumbs';
+import TopNavigationDock from './components/TopNavigationDock';
+import CommandPalette from './components/CommandPalette';
+import KinshipModal from './components/KinshipModal';
 import { translations } from './i18n';
 import { loadFamilyTreeData } from './data';
 import type { Person } from './types';
@@ -34,7 +33,13 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import HeaderEditor from './components/HeaderEditor';
 import TranslationOverlay from './components/TranslationOverlay';
 import NavigationDrawers from './components/NavigationDrawers';
-import { togglePersonCollapse } from './features/family-tree/utils/treeTransforms';
+import {
+  togglePersonCollapse,
+  getTreeStatistics,
+  setTreeCollapseByGeneration,
+  expandAllTree,
+  collapseToRoot
+} from './features/family-tree/utils/treeTransforms';
 import { useAuthSession } from './features/auth/hooks/useAuthSession';
 import { useTreePreferences } from './features/family-tree/hooks/useTreePreferences';
 import { useTreeSelection } from './features/family-tree/hooks/useTreeSelection';
@@ -58,12 +63,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const {
     currentData,
     setCurrentData,
-    isBulkTranslating,
     translationProgress,
     handleAddChild,
     handleDelete,
     handleSaveEdit,
-    handleBulkTranslate,
     handleUndo,
     handleRedo,
     canUndo,
@@ -79,20 +82,59 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const [isCommunityOpen, setIsCommunityOpen] = useState(false);
   const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState(false);
   const [isRightDrawerOpen, setIsRightDrawerOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isKinshipModalOpen, setIsKinshipModalOpen] = useState(false);
+  const [kinshipPersonA, setKinshipPersonA] = useState<Person | null>(null);
+  const [kinshipPersonB, setKinshipPersonB] = useState<Person | null>(null);
+  const [currentGenDepth, setCurrentGenDepth] = useState<number>(0);
 
   // Extracted hooks
   const prefs = useTreePreferences();
-  const { selectedNodeId, highlightedPath, focusNode, focusRoot, clearSelection } = useTreeSelection(currentData);
+  const { selectedNodeId, highlightedPath, setHighlightedPath, focusNode, focusRoot, clearSelection } = useTreeSelection(currentData);
 
   const t = translations[prefs.language];
+
+  // Tree statistics
+  const treeStats = useMemo(() => getTreeStatistics(currentData), [currentData]);
+
+  const refreshLayoutRef = useRef<(data: Person, skipFitView?: boolean) => void>(() => {});
 
   const handleToggleExpand = useCallback((personId: string) => {
     setCurrentData((prevData) => {
       const newData = togglePersonCollapse(prevData, personId);
-      setTimeout(() => layout.refreshLayoutRef.current(newData), 0);
+      setTimeout(() => refreshLayoutRef.current(newData), 0);
       return newData;
     });
   }, [setCurrentData]);
+
+  const handleSetGenDepth = useCallback((depth: number) => {
+    setCurrentGenDepth(depth);
+    setCurrentData((prev) => {
+      let updated: Person;
+      if (depth === 0) {
+        updated = expandAllTree(prev);
+      } else if (depth === 1) {
+        updated = collapseToRoot(prev);
+      } else {
+        updated = setTreeCollapseByGeneration(prev, depth);
+      }
+      setTimeout(() => refreshLayoutRef.current(updated), 0);
+      return updated;
+    });
+  }, [setCurrentData]);
+
+  const handleOpenKinshipForPerson = useCallback((person: Person) => {
+    setKinshipPersonA(person);
+    setKinshipPersonB(null);
+    setIsKinshipModalOpen(true);
+  }, []);
+
+  const handleHighlightLineage = useCallback((path: string[]) => {
+    setHighlightedPath(path);
+    if (path.length > 0) {
+      focusNode(path[0]);
+    }
+  }, [setHighlightedPath, focusNode]);
 
   const handleViewDetails = useCallback((person: Person) => {
     setViewPerson(person);
@@ -134,7 +176,13 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     }
   }, [currentData, setCurrentData, refreshDb]);
 
-  const layout = useTreeLayout({
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
+    refreshLayout,
+  } = useTreeLayout({
     userRole: user.role,
     language: prefs.language,
     theme: prefs.theme,
@@ -150,7 +198,12 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     handleAddParent,
     onEditPerson: handleEditPerson,
     onViewDetails: handleViewDetails,
+    onKinshipSelect: handleOpenKinshipForPerson,
   });
+
+  useEffect(() => {
+    refreshLayoutRef.current = refreshLayout;
+  }, [refreshLayout]);
 
   // Progress bar DOM update
   useEffect(() => {
@@ -169,7 +222,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) { handleRedo(); } else { handleUndo(); }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
@@ -184,16 +240,16 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   // Reactive refresh when UI settings or data change
   useEffect(() => {
     if (currentData && currentData.id !== 'root') {
-      layout.refreshLayout(currentData, true);
+      refreshLayout(currentData, true);
     }
-  }, [prefs.language, prefs.theme, prefs.fontScale, prefs.isPrivacyMode, layout.refreshLayout, currentData]);
+  }, [prefs.language, prefs.theme, prefs.fontScale, prefs.isPrivacyMode, refreshLayout, currentData]);
 
   // Initial layout when data arrives
   useEffect(() => {
     if (currentData && currentData.name !== 'Loading…') {
-      layout.refreshLayout(currentData);
+      refreshLayout(currentData);
     }
-  }, [currentData, layout.refreshLayout]);
+  }, [currentData, refreshLayout]);
 
   // Theme body class
   useEffect(() => {
@@ -209,16 +265,16 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
 
   const handleDataLoaded = useCallback((data: Person) => {
     setCurrentData(data);
-    layout.refreshLayout(data);
-  }, [setCurrentData, layout.refreshLayout]);
+    refreshLayout(data);
+  }, [setCurrentData, refreshLayout]);
 
   const handleReset = useCallback(async () => {
     if (confirm("Reset to default?")) {
       const defaultData = await loadFamilyTreeData();
       setCurrentData(defaultData);
-      layout.refreshLayout(defaultData);
+      refreshLayout(defaultData);
     }
-  }, [setCurrentData, layout.refreshLayout]);
+  }, [setCurrentData, refreshLayout]);
 
   const handleExport = () => {
     const jsonString = JSON.stringify({ tree: currentData }, null, 2);
@@ -234,336 +290,163 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
   const handleExportImage = useCallback(() => {
     const flowElement = document.querySelector('.react-flow') as HTMLElement;
     if (!flowElement) return;
-    toPng(flowElement, { backgroundColor: prefs.theme === 'dark' ? '#0f172a' : '#ffffff', quality: 1, pixelRatio: 2 })
-      .then((dataUrl) => {
-        const link = document.createElement('a');
-        link.download = `family-tree.png`;
-        link.href = dataUrl;
-        link.click();
-      });
+
+    toPng(flowElement, {
+      backgroundColor: prefs.theme === 'rajashahi' ? '#fff9f0' : prefs.theme === 'dark' ? '#020617' : '#ffffff',
+      quality: 1,
+      pixelRatio: 2,
+    }).then((dataUrl) => {
+      const link = document.createElement('a');
+      link.download = `vanshavali-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = dataUrl;
+      link.click();
+    }).catch((err) => {
+      console.error('Error generating image:', err);
+      alert('Failed to generate image.');
+    });
   }, [prefs.theme]);
 
-  const handleExportPDF = useCallback(() => {
+  const handleExportPDF = useCallback(async () => {
     const flowElement = document.querySelector('.react-flow') as HTMLElement;
     if (!flowElement) return;
-    toPng(flowElement, { backgroundColor: prefs.theme === 'dark' ? '#0f172a' : '#ffffff', quality: 1, pixelRatio: 2 })
-      .then(async (dataUrl) => {
-        const { jsPDF } = await import('jspdf');
-        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-        pdf.addImage(dataUrl, 'PNG', 0, 0, 297, 210);
-        pdf.save(`vanshavali.pdf`);
+
+    try {
+      const { jsPDF } = await import('jspdf');
+      const dataUrl = await toPng(flowElement, {
+        backgroundColor: prefs.theme === 'rajashahi' ? '#fff9f0' : prefs.theme === 'dark' ? '#020617' : '#ffffff',
+        quality: 1,
+        pixelRatio: 2,
       });
+
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a3',
+      });
+
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`vanshavali-${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      alert('Failed to generate PDF.');
+    }
   }, [prefs.theme]);
 
   const handlePrint = useCallback(() => { window.print(); }, []);
 
-  const handleResetFromBackup = useCallback(() => {
-    if (confirm("Reload from backup?")) {
-      localStorage.removeItem('vanshavali_data_v3');
-      window.location.reload();
-    }
-  }, []);
-
   return (
     <div className={clsx(
-      "w-full h-screen relative",
+      "w-full h-screen relative overflow-hidden",
       prefs.theme === 'dark' && 'dark',
       prefs.theme === 'rajashahi' && 'rajashahi',
       `font-scale-${prefs.fontScale}`
     )}>
       <div className="w-full h-full bg-slate-50 dark:bg-slate-950 rajashahi:bg-[#fff9f0] transition-colors duration-500">
-        {/* Top Controls Container */}
-        <div className="absolute top-0 left-0 w-full p-2 sm:p-4 z-50 pointer-events-none">
-          <div className="flex justify-between items-start gap-2 sm:gap-4">
+        
+        {/* Modern Glassmorphic Top Floating Island */}
+        <TopNavigationDock
+          stats={treeStats}
+          user={user}
+          language={prefs.language}
+          setLanguage={prefs.setLanguage}
+          theme={prefs.theme}
+          setTheme={prefs.setTheme}
+          onOpenSearch={() => setIsCommandPaletteOpen(true)}
+          onOpenKinship={() => {
+            setKinshipPersonA(null);
+            setKinshipPersonB(null);
+            setIsKinshipModalOpen(true);
+          }}
+          onToggleTimeline={() => setIsTimelineOpen(prev => !prev)}
+          onFocusRoot={focusRoot}
+          onSetGenDepth={handleSetGenDepth}
+          currentGenDepth={currentGenDepth}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onExportJSON={handleExport}
+          onExportImage={handleExportImage}
+          onExportPDF={handleExportPDF}
+          onPrint={handlePrint}
+          onReset={handleReset}
+          onLogout={onLogout}
+        />
 
-            {/* Mobile Left Menu Button */}
-            <div className="sm:hidden pointer-events-auto">
-              <button
-                onClick={() => setIsLeftDrawerOpen(true)}
-                className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400"
-                title="Open Menu"
-                aria-label="Open Menu"
-              >
-                <Menu size={24} />
-              </button>
-            </div>
-
-            {/* Left Side: Actions Column (Hidden on Mobile) */}
-            <div className="hidden sm:flex flex-col gap-1.5 items-start pointer-events-auto w-32 sm:w-40">
-              <button
-                onClick={() => setIsSearchOpen(true)}
-                className="w-full flex items-center gap-1.5 bg-blue-600 px-2 py-1.5 rounded-lg shadow-md border border-blue-700 hover:bg-blue-700 text-white font-medium transition-colors header-btn-primary"
-              >
-                <SearchIcon size={16} />
-                <span className="text-[11px] font-bold truncate">{t.findPerson}</span>
-              </button>
-
-              <button
-                onClick={handleResetFromBackup}
-                className="w-full flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1.5 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-orange-950/20 text-orange-600 dark:text-orange-400 font-medium transition-colors"
-                title="Reset from Backup Folder"
-              >
-                <RotateCcw size={16} />
-                <span className="text-[11px] font-bold truncate">Sync Backup</span>
-              </button>
-              <button
-                onClick={() => setIsTimelineOpen(true)}
-                className="w-full flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1.5 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-orange-600 dark:text-orange-400 font-medium transition-colors header-btn-secondary"
-              >
-                <Calendar size={16} />
-                <span className="text-[11px] font-bold truncate">{t.timeline}</span>
-              </button>
-
-              {user.role === 'ADMIN' && (
-                <div className="flex flex-col gap-1.5 w-full">
-                  <FileUpload onDataLoaded={handleDataLoaded} />
-                  <button
-                    onClick={async () => {
-                      if (confirm("Migrate data to Supabase? This will upload your local data to the database.")) {
-                        const { migrateDataToSupabase } = await import('./utils/migrate');
-                        await migrateDataToSupabase();
-                      }
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 bg-green-600 px-2 py-1.5 rounded-lg shadow-md border border-green-700 hover:bg-green-700 text-white font-medium transition-colors"
-                  >
-                    <CloudUpload size={16} />
-                    <span className="text-[11px] font-bold truncate">Migrate to DB</span>
-                  </button>
-                  <button
-                    onClick={handleExport}
-                    className="w-full flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1.5 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 font-medium transition-colors"
-                  >
-                    <Download size={16} />
-                    <span className="text-[11px] font-bold truncate">{t.export}</span>
-                  </button>
-                  <button
-                    onClick={handleBulkTranslate}
-                    disabled={isBulkTranslating}
-                    className="w-full flex items-center justify-center gap-1.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-2 py-1.5 rounded-lg shadow-md border border-purple-200 dark:border-purple-800 hover:bg-purple-200 dark:hover:bg-purple-900/60 font-bold transition-all disabled:opacity-50"
-                  >
-                    {isBulkTranslating ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                    <span className="text-[11px] font-bold truncate">Bulk AI Translate</span>
-                  </button>
-                  <button
-                    onClick={() => setIsCommunityOpen(true)}
-                    className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-700 px-2 py-1.5 rounded-lg shadow-md border border-blue-700 hover:from-blue-700 hover:to-indigo-800 text-white font-medium transition-all"
-                  >
-                    <Users size={16} />
-                    <span className="text-[11px] font-bold truncate">{t.community}</span>
-                  </button>
-                  <button
-                    onClick={() => prefs.setIsEditingHeader(true)}
-                    className="w-full flex items-center justify-center gap-1.5 bg-purple-600 px-2 py-1.5 rounded-lg shadow-md border border-purple-700 hover:bg-purple-700 text-white font-medium transition-colors"
-                  >
-                    <Palette size={16} />
-                    <span className="text-[11px] font-bold truncate">Header</span>
-                  </button>
-                  <button
-                    onClick={handleReset}
-                    className="w-full flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1.5 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 font-medium transition-colors"
-                  >
-                    <RotateCcw size={16} />
-                    <span className="text-[11px] font-bold truncate">{t.reset}</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Center: Cultural Heading (Responsive Scaling) */}
-            <div className="flex-1 flex flex-col items-center text-center pointer-events-auto mt-1 sm:mt-2 px-1">
-              <p className="hidden sm:block text-[9px] sm:text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 rajashahi:text-amber-800/90 italic leading-tight sm:leading-relaxed max-w-2xl">
-                {prefs.headerVerse}
-              </p>
-              <h1 className="text-lg sm:text-4xl font-black tracking-tighter text-gray-900 dark:text-white rajashahi:text-[#800000] drop-shadow-md mt-1 flex items-center gap-1 sm:gap-2">
-                {prefs.headerTitle} <span className="hidden sm:inline text-blue-600 rajashahi:text-[#ffd700]">|</span>
-              </h1>
-            </div>
-
-            {/* Mobile Right Settings Button */}
-            <div className="sm:hidden pointer-events-auto">
-              <button
-                onClick={() => setIsRightDrawerOpen(true)}
-                className="p-2 bg-white dark:bg-slate-800 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400"
-                title="Open Settings"
-                aria-label="Open Settings"
-              >
-                <Settings size={24} />
-              </button>
-            </div>
-
-            {/* Right Side: Configuration Column (Hidden on Mobile) */}
-            <div className="hidden sm:flex flex-col gap-1.5 items-end pointer-events-auto w-32 sm:w-40">
-              <div className="flex flex-col gap-1.5 w-full">
-                {/* Branch Style Selector */}
-                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 flex flex-col gap-1 w-full">
-                  <div className="px-1 pb-0.5 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between gap-1">
-                    <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tight">Branch</span>
-                    <input
-                      type="color"
-                      value={prefs.edgeColor}
-                      onChange={(e) => prefs.setEdgeColor(e.target.value)}
-                      className="w-3 h-3 rounded cursor-pointer border-none bg-transparent"
-                      title="Branch Color"
-                      aria-label="Branch Color"
-                    />
-                  </div>
-                  <select
-                    value={prefs.edgeWidth}
-                    onChange={(e) => prefs.setEdgeWidth(parseInt(e.target.value))}
-                    className="bg-transparent text-[9px] font-black outline-none text-gray-700 dark:text-gray-300 border-none px-0.5 cursor-pointer w-full text-center"
-                    title="Branch Thickness"
-                    aria-label="Branch Thickness"
-                  >
-                    {[2, 4, 6, 8].map(w => <option key={w} value={w}>{w}px</option>)}
-                  </select>
-                </div>
-
-                <button
-                  onClick={focusRoot}
-                  className="w-full flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1.5 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-                >
-                  <Maximize size={16} />
-                  <span className="text-[11px] font-bold">Focus</span>
-                </button>
-
-                {/* History Options */}
-                {user.role === 'ADMIN' && (
-                <div className="flex bg-gray-100 dark:bg-slate-800 rounded-xl p-1 border border-gray-200 dark:border-slate-700 w-full overflow-hidden">
-                  <button
-                    onClick={handleUndo}
-                    disabled={!canUndo}
-                    aria-label="Undo"
-                    title="Undo (Ctrl+Z)"
-                    className={clsx(
-                        "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-l-lg transition-all",
-                        canUndo ? "hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200" : "opacity-30 cursor-not-allowed text-gray-500"
-                    )}
-                  >
-                    <Undo size={14} />
-                  </button>
-                  <div className="w-px h-full bg-gray-300 dark:bg-slate-600 mx-0.5"></div>
-                  <button
-                    onClick={handleRedo}
-                    disabled={!canRedo}
-                    aria-label="Redo"
-                    title="Redo (Ctrl+Y)"
-                    className={clsx(
-                        "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-r-lg transition-all",
-                        canRedo ? "hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200" : "opacity-30 cursor-not-allowed text-gray-500"
-                    )}
-                  >
-                    <Redo size={14} />
-                  </button>
-                </div>
-                )}
-
-                {/* Image Export & Print - Admin Only */}
-                {user.role === 'ADMIN' && (
-                  <div className="flex flex-col bg-gray-100 dark:bg-slate-800 rounded-xl p-1 border border-gray-200 dark:border-slate-700 w-full overflow-hidden">
-                    <button
-                      onClick={handleExportImage}
-                      className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
-                    >
-                      <Download size={14} className="text-blue-600 dark:text-blue-400" />
-                      Img
-                    </button>
-                    <div className="w-full h-px bg-gray-300 dark:bg-slate-600 my-0.5"></div>
-                    <button
-                      onClick={handleExportPDF}
-                      className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
-                      title="Export as PDF"
-                    >
-                      <Download size={14} className="text-red-500" />
-                      PDF
-                    </button>
-                    <div className="w-full h-px bg-gray-300 dark:bg-slate-600 my-0.5"></div>
-                    <button
-                      onClick={handlePrint}
-                      className="flex items-center justify-center gap-1.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all text-[11px] font-bold text-gray-700 dark:text-gray-200 w-full"
-                      title={t.printTree}
-                    >
-                      <Printer size={14} className="text-gray-500" />
-                      Print
-                    </button>
-                  </div>
-                )}
-
-                {/* Theme Toggle Vertical */}
-                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 flex flex-col gap-1 w-full">
-                  <button onClick={() => prefs.setTheme('light')} title="Light Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", prefs.theme === 'light' ? "bg-blue-600 text-white" : "hover:bg-gray-100 text-gray-500")}>
-                    <Sun size={14} />
-                  </button>
-                  <button onClick={() => prefs.setTheme('dark')} title="Dark Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", prefs.theme === 'dark' ? "bg-blue-600 text-white" : "hover:bg-slate-700 text-gray-400")}>
-                    <Moon size={14} />
-                  </button>
-                  <button onClick={() => prefs.setTheme('rajashahi')} title="Royal Mode" className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", prefs.theme === 'rajashahi' ? "bg-orange-600 text-white" : "hover:bg-orange-50 text-orange-600")}>
-                    <Palette size={14} />
-                  </button>
-                  <button onClick={() => prefs.setIsPrivacyMode(!prefs.isPrivacyMode)} title={prefs.isPrivacyMode ? "Disable Privacy Mode" : "Enable Privacy Mode"} className={clsx("p-1.5 rounded-md transition-all flex items-center gap-2 justify-center", prefs.isPrivacyMode ? "bg-red-500 text-white" : "hover:bg-red-50 text-red-500")}>
-                    {prefs.isPrivacyMode ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-
-                {/* Font Scale Toggle Vertical */}
-                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-1 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 flex flex-col gap-1 w-full">
-                  {(['sm', 'md', 'lg'] as const).map(scale => (
-                    <button
-                      key={scale}
-                      onClick={() => prefs.setFontScale(scale)}
-                      className={clsx(
-                        "py-1 rounded-md text-[9px] font-black transition-all text-center",
-                        prefs.fontScale === scale ? "bg-blue-600 text-white" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
-                      )}
-                    >
-                      {scale === 'sm' ? "A" : scale === 'md' ? "A+" : "A++"}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Language Selector Vertical */}
-                <div className="flex flex-col bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-lg shadow-md border border-gray-200 dark:border-slate-700 p-1 gap-1 w-full">
-                  {(['EN', 'HI', 'GU'] as const).map(lang => (
-                    <button
-                      key={lang}
-                      onClick={() => prefs.setLanguage(lang)}
-                      className={`py-1 rounded text-[9px] font-black transition-all text-center ${prefs.language === lang ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
-                    >
-                      {lang}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex flex-col gap-1.5 w-full">
-                  <div className="flex items-center justify-center gap-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur px-2 py-1.5 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700">
-                    <div className={`w-1.5 h-1.5 rounded-full ${user.role === 'ADMIN' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]'}`}></div>
-                    <span className="text-[9px] font-black text-gray-600 dark:text-gray-300 uppercase tracking-tighter truncate">{user.role}</span>
-                  </div>
-
-                  <button
-                    onClick={onLogout}
-                    className="flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1.5 rounded-lg shadow-md border border-gray-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-900/10 text-gray-700 dark:text-gray-300 font-bold transition-colors"
-                  >
-                    <LogOut size={16} className="text-red-500" />
-                    <span className="text-[11px] font-bold">Exit</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Mobile Left Drawer Trigger */}
+        <div className="sm:hidden fixed bottom-4 left-4 z-40">
+          <button
+            onClick={() => setIsLeftDrawerOpen(true)}
+            className="p-3 bg-white dark:bg-slate-800 rounded-full shadow-xl border border-gray-200 dark:border-slate-700 text-blue-600 dark:text-blue-400 flex items-center justify-center"
+            title="Open Menu"
+            aria-label="Open Menu"
+          >
+            <Menu size={22} />
+          </button>
         </div>
 
-        <Breadcrumbs
+        {/* Cultural Heading Banner */}
+        <div className="absolute top-16 sm:top-20 left-1/2 -translate-x-1/2 flex flex-col items-center text-center pointer-events-none z-10 px-4 w-full max-w-2xl animate-in fade-in duration-500">
+          <p className="hidden sm:block text-[10px] sm:text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 rajashahi:text-amber-800/90 italic leading-tight max-w-xl">
+            {prefs.headerVerse}
+          </p>
+          <h1 className="text-xl sm:text-3xl font-black tracking-tight text-gray-900 dark:text-white rajashahi:text-[#800000] drop-shadow-sm mt-0.5 flex items-center gap-1.5 pointer-events-auto">
+            <span>{prefs.headerTitle}</span>
+            <span className="hidden sm:inline text-blue-600 rajashahi:text-[#ffd700]">|</span>
+            {user.role === 'ADMIN' && (
+              <button
+                onClick={() => prefs.setIsEditingHeader(true)}
+                className="p-1 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors"
+                title="Edit Header Title & Verse"
+              >
+                <Palette size={14} />
+              </button>
+            )}
+          </h1>
+        </div>
+
+        {/* Ancestor Lineage Breadcrumbs */}
+        <div className="absolute top-28 sm:top-32 left-1/2 -translate-x-1/2 z-20">
+          <Breadcrumbs
             currentNodeId={selectedNodeId}
             treeData={currentData}
             onNavigate={handleFocusNode}
             language={prefs.language}
-        />
+          />
+        </div>
 
+        {/* Subtle Bottom-Left Branch Styler (Color & Width) */}
+        <div className="absolute bottom-5 left-16 z-30 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-gray-200/60 dark:border-slate-700/60 shadow-md text-xs font-bold">
+          <span className="text-[10px] text-gray-400 uppercase tracking-tight">Branch:</span>
+          <input
+            type="color"
+            value={prefs.edgeColor}
+            onChange={(e) => prefs.setEdgeColor(e.target.value)}
+            className="w-4 h-4 rounded cursor-pointer border-none bg-transparent"
+            title="Branch Color"
+            aria-label="Branch Color"
+          />
+          <select
+            value={prefs.edgeWidth}
+            onChange={(e) => prefs.setEdgeWidth(parseInt(e.target.value))}
+            className="bg-transparent text-xs font-bold outline-none text-gray-700 dark:text-gray-300 border-none cursor-pointer"
+            title="Branch Thickness"
+            aria-label="Branch Thickness"
+          >
+            {[2, 4, 6, 8].map(w => <option key={w} value={w}>{w}px</option>)}
+          </select>
+        </div>
+
+        {/* Main Interactive Flow Canvas */}
         <ReactFlow
-          nodes={layout.nodes}
-          edges={layout.edges}
-          onNodesChange={layout.onNodesChange}
-          onEdgesChange={layout.onEdgesChange}
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
           onNodeClick={(_, node) => handleFocusNode(node.id)}
           onPaneClick={clearSelection}
           nodeTypes={nodeTypes}
@@ -578,10 +461,11 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           attributionPosition="bottom-right"
         >
           <Background gap={20} size={1} />
-          <Controls />
-          <MiniMap zoomable pannable />
+          <Controls position="bottom-left" />
+          <MiniMap zoomable pannable position="bottom-right" />
         </ReactFlow>
 
+        {/* Modals and Drawers */}
         <EditModal
           person={editingPerson}
           onClose={() => setEditingPerson(null)}
@@ -598,11 +482,33 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
             fontScale={prefs.fontScale}
             isPrivacyMode={user.role === 'VIEW_ONLY'}
             onClose={() => setViewPerson(null)}
+            onFocusPerson={handleFocusNode}
+            onOpenKinshipWith={handleOpenKinshipForPerson}
           />
         )}
 
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          nodes={nodes}
+          onFocusNode={handleFocusNode}
+          language={prefs.language}
+          theme={prefs.theme}
+        />
+
+        <KinshipModal
+          isOpen={isKinshipModalOpen}
+          onClose={() => setIsKinshipModalOpen(false)}
+          treeRoot={currentData}
+          initialPersonA={kinshipPersonA}
+          initialPersonB={kinshipPersonB}
+          onHighlightLineage={handleHighlightLineage}
+          language={prefs.language}
+          theme={prefs.theme}
+        />
+
         <SearchSidebar
-          nodes={layout.nodes}
+          nodes={nodes}
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
           onFocusNode={handleFocusNode}
@@ -610,7 +516,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
         />
 
         <TimelineView
-          nodes={layout.nodes}
+          nodes={nodes}
           isOpen={isTimelineOpen}
           onClose={() => setIsTimelineOpen(false)}
           onFocusNode={handleFocusNode}

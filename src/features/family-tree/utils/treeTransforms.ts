@@ -96,3 +96,73 @@ export function sortChildren(children: Person[]): Person[] {
         return 0;
     });
 }
+
+export interface TreeStatistics {
+    totalMembers: number;
+    maxGeneration: number;
+    maleCount: number;
+    femaleCount: number;
+    livingCount: number;
+    deceasedCount: number;
+}
+
+/** Compute overall tree statistics (members, generations, living/deceased, genders). */
+export function getTreeStatistics(root: Person): TreeStatistics {
+    const stats: TreeStatistics = {
+        totalMembers: 0,
+        maxGeneration: 1,
+        maleCount: 0,
+        femaleCount: 0,
+        livingCount: 0,
+        deceasedCount: 0,
+    };
+
+    function traverse(p: Person, gen: number) {
+        stats.totalMembers++;
+        if (gen > stats.maxGeneration) stats.maxGeneration = gen;
+        if (p.gender === 'FEMALE') stats.femaleCount++;
+        else stats.maleCount++;
+
+        if (p.dateOfDeath) stats.deceasedCount++;
+        else stats.livingCount++;
+
+        if (p.children) {
+            for (const child of p.children) {
+                traverse(child, gen + 1);
+            }
+        }
+    }
+
+    if (root && root.id) {
+        traverse(root, root.generation || 1);
+    }
+    return stats;
+}
+
+/** Set collapse state across the entire tree by target maximum generation depth. */
+export function setTreeCollapseByGeneration(root: Person, maxVisibleGen: number, currentGen = 1): Person {
+    const isCollapsed = currentGen >= maxVisibleGen;
+    return {
+        ...root,
+        isCollapsed,
+        children: root.children ? root.children.map(child => setTreeCollapseByGeneration(child, maxVisibleGen, currentGen + 1)) : [],
+    };
+}
+
+/** Expand all nodes in the tree. */
+export function expandAllTree(root: Person): Person {
+    return {
+        ...root,
+        isCollapsed: false,
+        children: root.children ? root.children.map(expandAllTree) : [],
+    };
+}
+
+/** Collapse the tree back to root. */
+export function collapseToRoot(root: Person): Person {
+    return {
+        ...root,
+        isCollapsed: true,
+        children: root.children ? root.children.map(collapseToRoot) : [],
+    };
+}

@@ -30,6 +30,7 @@ interface UseTreeLayoutOptions {
     handleAddParent: () => void;
     onEditPerson: (person: Person) => void;
     onViewDetails: (person: Person) => void;
+    onKinshipSelect?: (person: Person) => void;
 }
 
 export const useTreeLayout = (options: UseTreeLayoutOptions) => {
@@ -41,7 +42,7 @@ export const useTreeLayout = (options: UseTreeLayoutOptions) => {
         userRole, language, theme, fontScale, isPrivacyMode,
         highlightedPath, selectedNodeId, edgeColor, edgeWidth,
         handleAddChild, handleDelete, handleToggleExpand, handleAddParent,
-        onEditPerson, onViewDetails,
+        onEditPerson, onViewDetails, onKinshipSelect,
     } = options;
 
     const refreshLayout = useCallback((data: Person, skipFitView = false) => {
@@ -60,10 +61,12 @@ export const useTreeLayout = (options: UseTreeLayoutOptions) => {
                 onDelete: isAdmin ? handleDelete : undefined,
                 onAddParent: isAdmin ? handleAddParent : undefined,
                 onViewDetails: (p: Person) => onViewDetails(p),
+                onKinshipSelect: onKinshipSelect ? (p: Person) => onKinshipSelect(p) : undefined,
                 language,
                 theme,
                 fontScale,
                 isPrivacyMode,
+                isSelected: selectedNodeId === node.id,
                 isHighlighted: highlightedPath.includes(node.id) || selectedNodeId === node.id,
             },
         }));
@@ -93,7 +96,7 @@ export const useTreeLayout = (options: UseTreeLayoutOptions) => {
         setNodes, setEdges, userRole, handleAddChild, handleDelete,
         fitView, language, edgeColor, edgeWidth, theme, fontScale,
         isPrivacyMode, highlightedPath, selectedNodeId,
-        handleToggleExpand, handleAddParent, onEditPerson, onViewDetails,
+        handleToggleExpand, handleAddParent, onEditPerson, onViewDetails, onKinshipSelect,
     ]);
 
     // Ref to allow async callbacks (like toggle-expand) to call latest refreshLayout

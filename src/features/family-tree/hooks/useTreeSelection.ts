@@ -45,6 +45,7 @@ export const useTreeSelection = (currentData: Person) => {
     return {
         selectedNodeId,
         highlightedPath,
+        setHighlightedPath,
         focusNode,
         focusRoot,
         clearSelection,

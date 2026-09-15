@@ -19,11 +19,13 @@ const FileUpload = ({ onDataLoaded }: FileUploadProps) => {
             try {
                 const json = JSON.parse(e.target?.result as string);
                 // Check if it matches the structure "tree: { ... }"
-                let dataToLoad: any = null;
-                if (json.tree) {
-                    dataToLoad = json.tree;
-                } else if (json.id && json.name) {
-                    dataToLoad = json;
+                let dataToLoad: unknown = null;
+                if (json && typeof json === 'object') {
+                    if ('tree' in json) {
+                        dataToLoad = (json as { tree: unknown }).tree;
+                    } else if ('id' in json && 'name' in json) {
+                        dataToLoad = json;
+                    }
                 }
 
                 if (dataToLoad) {

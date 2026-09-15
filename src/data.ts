@@ -1,5 +1,6 @@
 import type { Person } from './types';
 import { validatePerson } from './utils/validateTree';
+import { ensurePersonTranslations } from './utils/transliterate';
 
 const addGenerations = (node: Partial<Person> & { children?: Partial<Person>[] }, gen: number): Person => {
     return {
@@ -36,5 +37,7 @@ export async function loadFamilyTreeData(): Promise<Person> {
         throw new Error(`Data validation failed:\n${validation.errors.join('\n')}`);
     }
     
-    return addGenerations(rawData, 1);
+    const enriched = ensurePersonTranslations(rawData);
+    return addGenerations(enriched, 1);
 }
+

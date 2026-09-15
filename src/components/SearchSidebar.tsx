@@ -41,7 +41,12 @@ export default function SearchSidebar({ nodes, onFocusNode, isOpen, onClose, lan
                 person.translations?.HI?.occupation?.toLowerCase().includes(q) ||
                 person.translations?.GU?.occupation?.toLowerCase().includes(q);
 
-            const matchesSearch = !searchQuery || nameMatched || occupationMatched || person.id.toLowerCase().includes(q);
+            const spouseMatched = person.spouse?.toLowerCase().includes(q) ||
+                person.translations?.EN?.spouse?.toLowerCase().includes(q) ||
+                person.translations?.HI?.spouse?.toLowerCase().includes(q) ||
+                person.translations?.GU?.spouse?.toLowerCase().includes(q);
+
+            const matchesSearch = !searchQuery || nameMatched || occupationMatched || spouseMatched || person.id.toLowerCase().includes(q);
 
             const matchesGender = filterGender === 'ALL' || person.gender === filterGender;
             const matchesGen = person.generation >= filterGenRange.min && person.generation <= filterGenRange.max;

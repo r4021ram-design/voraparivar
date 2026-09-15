@@ -36,9 +36,10 @@ export const useSupabaseTree = () => {
                 setError("Root node not found in database.");
             }
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Error fetching tree:", err);
-            setError(err.message);
+            const message = err instanceof Error ? err.message : String(err);
+            setError(message);
             // Fallback: load from localStorage or JSON file when Supabase fails
             try {
                 const local = localStorage.getItem('vanshavali_data_v3');
@@ -57,7 +58,7 @@ export const useSupabaseTree = () => {
 
     useEffect(() => {
         fetchTree();
-    }, []);
+    }, [fetchTree]);
 
     return { data, loading, error, refresh: fetchTree };
 };

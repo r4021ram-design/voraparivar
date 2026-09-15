@@ -35,8 +35,9 @@ export const bulkSyncTreeToDb = async (root: Person): Promise<{ success: boolean
         }
 
         return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Bulk sync to Supabase failed:", err);
-        return { success: false, error: err.message };
+        const error = err instanceof Error ? err.message : String(err);
+        return { success: false, error };
     }
 };

@@ -60,7 +60,7 @@ const EditModal = ({ person, onClose, onSave, language = 'EN', userRole }: EditM
         
         // Sync manual edits to the current language translation layer
         // This fixes the bug where manual edits in Hindi/Gujarati don't show up in the UI
-        let finalData = { ...formData };
+        const finalData = { ...formData };
         if (language !== 'EN') {
             const updatedTranslations = { ...formData.translations };
             updatedTranslations[language] = {
@@ -106,7 +106,7 @@ const EditModal = ({ person, onClose, onSave, language = 'EN', userRole }: EditM
             } else {
                 alert("Nothing to translate.");
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Translation failed, trying fallback...", error);
             // Fallback to Google Transliterate for Names and basics
             try {
@@ -124,15 +124,16 @@ const EditModal = ({ person, onClose, onSave, language = 'EN', userRole }: EditM
                     }
                 } : null);
                 alert("AI Translation failed, but used Local Transliteration for names.");
-            } catch (fallbackErr: any) {
-                alert("Translation failed. Make sure your API key is correct in .env\nError: " + error.message);
+            } catch {
+                const errMsg = error instanceof Error ? error.message : String(error);
+                alert("Translation failed. Make sure your API key is correct in .env\nError: " + errMsg);
             }
         } finally {
             setIsTranslating(false);
         }
     };
 
-    const handleChange = (field: keyof Person, value: any) => {
+    const handleChange = <K extends keyof Person>(field: K, value: Person[K]) => {
         setFormData(prev => prev ? ({ ...prev, [field]: value }) : null);
     };
 
@@ -218,7 +219,7 @@ const EditModal = ({ person, onClose, onSave, language = 'EN', userRole }: EditM
                         <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">{t.gender}</label>
                         <select
                             value={formData.gender || 'MALE'}
-                            onChange={(e) => handleChange('gender', e.target.value)}
+                            onChange={(e) => handleChange('gender', e.target.value as 'MALE' | 'FEMALE')}
                             className="p-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm h-[38px] text-gray-800 dark:text-gray-100"
                             title={t.gender}
                             aria-label={t.gender}

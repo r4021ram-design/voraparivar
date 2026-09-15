@@ -88,7 +88,7 @@ export default function TimelineView({ nodes, isOpen, onClose, onFocusNode, lang
         });
 
         return extracted.sort((a, b) => b.year - a.year); // Latest first
-    }, [nodes, t]);
+    }, [nodes, t, language]);
 
     if (!isOpen) return null;
 

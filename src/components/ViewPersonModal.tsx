@@ -1,5 +1,5 @@
-import type { Person } from '../types';
-import { Calendar, Briefcase, Heart, User, Phone, MapPin, BookOpen, X } from 'lucide-react';
+import { Calendar, Briefcase, Heart, Phone, MapPin, BookOpen, X, GitFork, ChevronRight, User } from 'lucide-react';
+import type { Person } from '../types/person';
 import { translations, type Language, getTranslatedContent } from '../i18n';
 import clsx from 'clsx';
 
@@ -10,24 +10,37 @@ interface ViewPersonModalProps {
     fontScale: 'sm' | 'md' | 'lg';
     isPrivacyMode?: boolean;
     onClose: () => void;
+    onFocusPerson?: (personId: string) => void;
+    onOpenKinshipWith?: (person: Person) => void;
 }
 
 const DetailRow = ({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?: number; className?: string }>, label: string, value?: string }) => {
     if (!value) return null;
     return (
-        <div className="flex items-center gap-2 mb-1">
-            <Icon size={14} className="text-gray-500 dark:text-gray-400" />
-            <span className="text-sm text-gray-600 dark:text-gray-300 font-medium">{label}:</span>
-            <span className="text-sm text-gray-800 dark:text-gray-100">{value}</span>
+        <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-slate-800/80 text-xs">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <Icon size={14} className="shrink-0 text-blue-500" />
+                <span className="font-medium">{label}:</span>
+            </div>
+            <span className="font-bold text-gray-800 dark:text-gray-200 text-right">{value}</span>
         </div>
     );
 };
 
-const ViewPersonModal = ({ person, language, theme, fontScale, isPrivacyMode, onClose }: ViewPersonModalProps) => {
+export default function ViewPersonModal({
+    person,
+    language,
+    theme,
+    fontScale,
+    isPrivacyMode,
+    onClose,
+    onFocusPerson,
+    onOpenKinshipWith,
+}: ViewPersonModalProps) {
     const t = translations[language];
 
     // Translation helper for content
-    const translateContent = (text?: string, field?: 'name'|'occupation'|'relation'|'spouse'|'bio'|'spouseOccupation') => {
+    const translateContent = (text?: string, field?: 'name' | 'occupation' | 'relation' | 'spouse' | 'bio' | 'spouseOccupation') => {
         if (field && person.translations?.[language]?.[field]) {
             return person.translations[language][field];
         }
@@ -48,165 +61,208 @@ const ViewPersonModal = ({ person, language, theme, fontScale, isPrivacyMode, on
         return `**-**-****`;
     };
 
-    return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 pb-20 sm:pb-6 pointer-events-auto">
-            {/* Backdrop */}
-            <div 
-                className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity" 
-                onClick={onClose}
-            />
+    const calculateAge = (dob?: string, dod?: string) => {
+        if (!dob) return undefined;
+        const birthDate = new Date(dob);
+        const endDate = dod ? new Date(dod) : new Date();
+        let age = endDate.getFullYear() - birthDate.getFullYear();
+        const m = endDate.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && endDate.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age > 0 ? `${age} ${language === 'HI' ? 'वर्ष' : language === 'GU' ? 'વર્ષ' : 'years'}` : undefined;
+    };
 
-            {/* Modal Content */}
+    const isFemale = person.gender === 'FEMALE';
+    const ageDisplay = calculateAge(person.dateOfBirth, person.dateOfDeath);
+
+    return (
+        <div className="fixed inset-0 z-[200] flex justify-end bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            {/* Backdrop click to close */}
+            <div className="absolute inset-0" onClick={onClose} />
+
+            {/* Sliding Profile Drawer */}
             <div className={clsx(
-                "relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 custom-scrollbar",
-                theme === 'rajashahi' ? "bg-[#fff9f0] border-2 border-[#ffd700]/30" : "bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800",
-                `font-scale-${fontScale}`
+                "relative z-10 w-full sm:w-[450px] h-full shadow-2xl overflow-y-auto flex flex-col animate-in slide-in-from-right duration-300 border-l",
+                theme === 'rajashahi'
+                    ? "bg-[#fffdf8] border-[#ffd700]/50 text-gray-900"
+                    : "bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-800 text-gray-900 dark:text-gray-100"
             )}>
-                {/* Header */}
-                <div className="sticky top-0 z-10 bg-gray-50/90 dark:bg-slate-800/90 backdrop-blur-md px-6 py-4 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
-                    <h3 className="font-bold text-lg text-gray-700 dark:text-gray-200">{t.familyDetails}</h3>
-                    <div className="flex items-center gap-3">
-                        {person.anniversaryDate && (
-                            <div className="flex items-center gap-1.5 text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/30 px-3 py-1 rounded-full border border-pink-100 dark:border-pink-800">
-                                <Heart size={14} fill="currentColor" />
-                                <span className="text-sm font-semibold">{person.anniversaryDate}</span>
+                {/* Header with Photo / Monogram & Cover */}
+                <div className={clsx(
+                    "relative p-6 pt-10 pb-6 flex flex-col items-center text-center transition-colors",
+                    theme === 'rajashahi'
+                        ? "bg-gradient-to-b from-[#800000] to-[#5c0000] text-white"
+                        : isFemale
+                        ? "bg-gradient-to-b from-rose-500 to-pink-700 text-white"
+                        : "bg-gradient-to-b from-blue-600 to-indigo-800 text-white"
+                )}>
+                    {/* Close Button */}
+                    <button
+                        onClick={onClose}
+                        className="absolute top-4 right-4 p-2 rounded-full bg-black/20 hover:bg-black/40 text-white transition-colors"
+                        title="Close"
+                    >
+                        <X size={18} />
+                    </button>
+
+                    {/* Avatar */}
+                    <div className="relative mb-3">
+                        {person.photoUrl ? (
+                            <img
+                                src={person.photoUrl}
+                                alt={person.name}
+                                className="w-24 h-24 rounded-full object-cover ring-4 ring-white/60 shadow-xl"
+                            />
+                        ) : (
+                            <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center font-black text-2xl ring-4 ring-white/40 shadow-xl">
+                                {person.name.trim().slice(0, 2).toUpperCase()}
                             </div>
                         )}
-                        <button 
-                            onClick={onClose}
-                            title="Close"
-                            aria-label="Close"
-                            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                        >
-                            <X size={20} />
-                        </button>
+                        {/* Memorial Badge */}
+                        {person.dateOfDeath && (
+                            <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full border border-white/40 shadow">
+                                🕊️ {language === 'HI' ? 'स्व.' : 'Late'}
+                            </span>
+                        )}
                     </div>
+
+                    {/* Name */}
+                    <h2 className={clsx(
+                        "font-black tracking-tight drop-shadow-sm",
+                        fontScale === 'sm' ? 'text-xl' : fontScale === 'md' ? 'text-2xl' : 'text-3xl'
+                    )}>
+                        {translateContent(person.name, 'name')}
+                    </h2>
+
+                    {/* Relation & Generation Pill */}
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-xs font-bold uppercase tracking-wider backdrop-blur-sm">
+                            {t.generations} {person.generation}
+                        </span>
+                        {person.relation && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-black/20 text-xs font-medium backdrop-blur-sm">
+                                {translateContent(person.relation, 'relation')}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Kinship button directly on profile */}
+                    {onOpenKinshipWith && (
+                        <button
+                            onClick={() => onOpenKinshipWith(person)}
+                            className="mt-4 px-4 py-2 rounded-full bg-white text-gray-900 hover:bg-white/90 text-xs font-black shadow-lg transition-transform active:scale-95 flex items-center gap-2"
+                        >
+                            <GitFork size={14} className="text-blue-600" />
+                            <span>{language === 'HI' ? 'रिश्ता कैलकुलेट करें' : 'Calculate Relationship'}</span>
+                        </button>
+                    )}
                 </div>
 
-                <div className="p-6 flex flex-col gap-6">
-                    {/* Primary Person */}
-                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
-                        <div className={clsx(
-                            "w-28 h-28 sm:w-24 sm:h-24 rounded-3xl overflow-hidden border-4 shadow-md shrink-0",
-                            theme === 'rajashahi' ? "border-[#ffd700]" : "border-white dark:border-slate-800"
-                        )}>
-                            {person.photoUrl ? (
-                                <img src={person.photoUrl} alt={person.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className={clsx(
-                                    "w-full h-full flex items-center justify-center",
-                                    theme === 'rajashahi' ? "bg-orange-50" : "bg-gray-100 dark:bg-slate-800"
-                                )}>
-                                    <User size={40} className={clsx(
-                                        theme === 'rajashahi' ? "text-amber-600" : "text-gray-400 dark:text-gray-500"
-                                    )} />
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h3 className={clsx(
-                                "font-black truncate leading-tight mb-2",
-                                theme === 'rajashahi' ? "text-[#800000]" : "text-gray-800 dark:text-gray-100",
-                                fontScale === 'sm' ? 'text-xl' : fontScale === 'md' ? 'text-2xl' : 'text-3xl'
-                            )}>
-                                {translateContent(person.name, 'name')}
-                            </h3>
-                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-4">
-                                <span className={clsx(
-                                    "text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-widest",
-                                    theme === 'rajashahi' ? "bg-amber-100 text-amber-800" : "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"
-                                )}>
-                                    {t.generations} {person.generation}
-                                </span>
-                                {person.relation && (
-                                    <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight px-2 py-0.5 border border-gray-200 dark:border-gray-700 rounded-full">
-                                        {translateContent(person.relation, 'relation')}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="space-y-1.5 flex flex-col items-center sm:items-start text-left w-full max-w-sm mx-auto sm:mx-0 bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-100 dark:border-slate-800/50">
-                                <DetailRow icon={Calendar} label={t.birth} value={maskDate(person.dateOfBirth)} />
-                                <DetailRow icon={Calendar} label={t.death} value={person.dateOfDeath} />
-                                <DetailRow icon={Briefcase} label={t.occupation} value={translateContent(person.occupation, 'occupation')} />
-                                <DetailRow icon={Phone} label={t.phone} value={maskPhone(person.phoneNumber)} />
-                            </div>
-                            
-                            {person.location?.name && !isPrivacyMode && (
-                                <div className="flex items-center justify-center sm:justify-start gap-2 mt-3 group/loc w-full">
-                                    <MapPin size={16} className="text-blue-500 shrink-0" />
-                                    <a
-                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(person.location.name)}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-sm text-blue-600 dark:text-blue-400 font-bold hover:underline line-clamp-2"
-                                    >
-                                        {person.location.name}
-                                    </a>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Biography Section */}
+                {/* Profile Details Content */}
+                <div className="p-5 flex flex-col gap-4 flex-1">
+                    {/* Bio Section */}
                     {person.bio && (
-                        <div className="pt-4 border-t border-gray-100 dark:border-slate-800">
-                            <div className="flex items-center gap-2 mb-3">
-                                <BookOpen size={16} className="text-green-500" />
-                                <span className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t.lifeStory}</span>
-                            </div>
-                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic border-l-4 border-green-500/30 pl-4 bg-green-50/30 dark:bg-green-900/10 py-2 pr-2 rounded-r-xl">
+                        <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-800">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2 flex items-center gap-1.5">
+                                <BookOpen size={14} />
+                                {language === 'HI' ? 'जीवन परिचय' : 'Biography'}
+                            </h3>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic">
                                 "{translateContent(person.bio, 'bio')}"
                             </p>
                         </div>
                     )}
 
-                    {/* Gallery Section */}
-                    {person.gallery && person.gallery.length > 0 && (
-                        <div className="pt-4 border-t border-gray-100 dark:border-slate-800 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{t.gallery}</h4>
-                                <span className="text-xs text-gray-500 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-full font-bold">{person.gallery.length} Photos</span>
-                            </div>
-                            <div className="flex gap-3 overflow-x-auto pb-3 custom-scrollbar snap-x">
-                                {person.gallery.map((url, idx) => (
-                                    <div key={idx} className="relative w-40 h-40 rounded-2xl overflow-hidden shrink-0 shadow-sm border border-gray-100 dark:border-slate-800 snap-center group">
-                                        <img src={url} alt={`Gallery ${idx}`} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500" />
+                    {/* Personal Details Table */}
+                    <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-800">
+                        <h3 className="text-xs font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                            {language === 'HI' ? 'व्यक्तिगत विवरण' : 'Personal Details'}
+                        </h3>
+                        <div className="flex flex-col">
+                            <DetailRow icon={Briefcase} label={t.occupation} value={translateContent(person.occupation, 'occupation')} />
+                            <DetailRow icon={Calendar} label={t.birthDate} value={maskDate(person.dateOfBirth)} />
+                            {person.dateOfDeath && (
+                                <DetailRow icon={Calendar} label={t.deathDate} value={maskDate(person.dateOfDeath)} />
+                            )}
+                            {ageDisplay && (
+                                <DetailRow icon={User} label={person.dateOfDeath ? (language === 'HI' ? 'आयु (निधन समय)' : 'Age at passing') : (language === 'HI' ? 'वर्तमान आयु' : 'Current Age')} value={ageDisplay} />
+                            )}
+                            <DetailRow icon={Phone} label={t.phone} value={maskPhone(person.phoneNumber)} />
+                            <DetailRow icon={MapPin} label={language === 'HI' ? 'स्थान' : 'Location'} value={person.location?.name} />
+                        </div>
+                    </div>
+
+                    {/* Spouse Details */}
+                    {person.spouse && (
+                        <div className="p-4 rounded-2xl bg-pink-50/50 dark:bg-rose-950/20 border border-pink-100 dark:border-rose-900/30">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-pink-600 dark:text-pink-400 mb-3 flex items-center gap-1.5">
+                                <Heart size={14} />
+                                {t.spouse || 'Spouse'}
+                            </h3>
+
+                            <div className="flex items-center gap-3 mb-3">
+                                {person.spousePhotoUrl ? (
+                                    <img src={person.spousePhotoUrl} alt="" className="w-12 h-12 rounded-full object-cover shadow-sm" />
+                                ) : (
+                                    <div className="w-12 h-12 rounded-full bg-pink-200 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 font-bold flex items-center justify-center text-sm">
+                                        {person.spouse.trim().slice(0, 2).toUpperCase()}
                                     </div>
-                                ))}
+                                )}
+                                <div>
+                                    <h4 className="font-bold text-base text-gray-900 dark:text-gray-100">
+                                        {translateContent(person.spouse, 'spouse')}
+                                    </h4>
+                                    {person.spouseOccupation && (
+                                        <p className="text-xs text-gray-500 italic">
+                                            {translateContent(person.spouseOccupation, 'spouseOccupation')}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col">
+                                <DetailRow icon={Calendar} label={t.anniversary || 'Anniversary'} value={maskDate(person.anniversaryDate)} />
+                                <DetailRow icon={Calendar} label={t.birthDate} value={maskDate(person.spouseDateOfBirth)} />
+                                {person.spouseDateOfDeath && (
+                                    <DetailRow icon={Calendar} label={t.deathDate} value={maskDate(person.spouseDateOfDeath)} />
+                                )}
+                                <DetailRow icon={Phone} label={t.phone} value={maskPhone(person.spousePhoneNumber)} />
                             </div>
                         </div>
                     )}
 
-                    {/* Spouse Details */}
-                    {person.spouse && (
-                        <div className="pt-4 border-t border-gray-100 dark:border-slate-800">
-                            <div className="flex items-center justify-center sm:justify-start gap-2 mb-4">
-                                <Heart size={16} className="text-pink-500 fill-current" />
-                                <span className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
-                                    {person.gender === 'MALE' ? t.wife : t.husband}
-                                </span>
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 bg-pink-50/50 dark:bg-pink-950/20 p-5 rounded-2xl border border-pink-100 dark:border-pink-900/40 text-center sm:text-left">
-                                {/* Spouse Avatar */}
-                                <div className="w-20 h-20 rounded-full bg-pink-100 dark:bg-pink-900/40 flex items-center justify-center shrink-0 overflow-hidden border-4 border-white dark:border-slate-800 shadow-md">
-                                    {person.spousePhotoUrl ? (
-                                        <img src={person.spousePhotoUrl} alt={person.spouse} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <User size={28} className="text-pink-400 dark:text-pink-600 shadow-sm" />
-                                    )}
-                                </div>
-
-                                <div className="flex-1 w-full">
-                                    <div className="font-bold text-gray-900 dark:text-gray-100 text-lg mb-3">{translateContent(person.spouse, 'spouse')}</div>
-                                    <div className="space-y-1.5 flex flex-col items-center sm:items-start text-left mx-auto sm:mx-0 max-w-sm">
-                                        <DetailRow icon={Calendar} label={t.birth} value={maskDate(person.spouseDateOfBirth)} />
-                                        <DetailRow icon={Calendar} label={t.death} value={person.spouseDateOfDeath} />
-                                        <DetailRow icon={Briefcase} label={t.occupation} value={translateContent(person.spouseOccupation, 'spouseOccupation')} />
-                                        <DetailRow icon={Phone} label={t.phone} value={maskPhone(person.spousePhoneNumber)} />
-                                    </div>
-                                </div>
+                    {/* Children List & Quick Jumps */}
+                    {person.children && person.children.length > 0 && (
+                        <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-800">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">
+                                {language === 'HI' ? `संतान (${person.children.length})` : `Children (${person.children.length})`}
+                            </h3>
+                            <div className="flex flex-col gap-1.5 mt-2">
+                                {person.children.map(child => (
+                                    <button
+                                        key={child.id}
+                                        onClick={() => {
+                                            onFocusPerson?.(child.id);
+                                            onClose();
+                                        }}
+                                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-gray-100 dark:border-slate-700/60 flex items-center justify-between text-left transition-colors"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className={clsx(
+                                                "w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white",
+                                                child.gender === 'FEMALE' ? "bg-pink-500" : "bg-blue-500"
+                                            )}>
+                                                {child.name.slice(0, 1)}
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{child.name}</p>
+                                                <p className="text-[10px] text-gray-400">Gen {child.generation}</p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={14} className="text-gray-400" />
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -214,6 +270,4 @@ const ViewPersonModal = ({ person, language, theme, fontScale, isPrivacyMode, on
             </div>
         </div>
     );
-};
-
-export default ViewPersonModal;
+}

@@ -236,19 +236,38 @@ export const translations = {
 
 export type TranslationKey = keyof typeof translations.EN;
 
-export const getTranslatedContent = (text: string | undefined, language: Language) => {
-    if (!text) return "";
-    if (language === "EN") return text;
+import { transliterateTextSync } from './utils/transliterate';
 
+export const getTranslatedContent = (text: string | undefined, language: Language): string => {
+    if (!text) return "";
     const trimmedText = text.trim();
+    if (!trimmedText) return "";
+
     const langObj = translations[language];
 
-    // Check if the text matches any value in the English dictionary (case-insensitive)
-    for (const [key, val] of Object.entries(translations.EN)) {
+    // 1. Check if the text matches any value in the English dictionary (case-insensitive)
+    for (const [key, val] of Object.entries(translations.EN) as [keyof typeof translations.EN, string][]) {
         if (val.toLowerCase() === trimmedText.toLowerCase()) {
-            return (langObj as any)[key] || text;
+            return langObj[key] || text;
         }
     }
 
-    return text;
+    // 2. Check if the text matches Hindi dictionary terms
+    for (const [key, val] of Object.entries(translations.HI) as [keyof typeof translations.HI, string][]) {
+        if (val === trimmedText) {
+            return langObj[key] || text;
+        }
+    }
+
+    // 3. Check if the text matches Gujarati dictionary terms
+    for (const [key, val] of Object.entries(translations.GU) as [keyof typeof translations.GU, string][]) {
+        if (val === trimmedText) {
+            return langObj[key] || text;
+        }
+    }
+
+    // 4. Use intelligent Indic transliteration / translation engine (handles all names and custom text)
+    const transliterated = transliterateTextSync(trimmedText, language);
+    return transliterated || text;
 };
+

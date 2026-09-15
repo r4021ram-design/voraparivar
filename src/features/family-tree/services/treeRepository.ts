@@ -47,6 +47,8 @@ export function loadTreeFromLocal(): Person | null {
     }
 }
 
+import { ensurePersonTranslations } from '../../../utils/transliterate';
+
 /** Load tree from the seed JSON file (/public/vanshavali_edited.json). */
 export async function loadTreeFromSeed(): Promise<Person> {
     return loadFamilyTreeData();
@@ -57,14 +59,24 @@ export async function loadTreeFromSeed(): Promise<Person> {
  * Guaranteed to return a Person (seed is the last resort).
  */
 export async function loadTree(): Promise<Person> {
+    let tree: Person;
     const dbTree = await loadTreeFromDb();
-    if (dbTree) return dbTree;
+    if (dbTree) {
+        tree = dbTree;
+    } else {
+        const localTree = loadTreeFromLocal();
+        if (localTree) {
+            tree = localTree;
+        } else {
+            tree = await loadTreeFromSeed();
+        }
+    }
 
-    const localTree = loadTreeFromLocal();
-    if (localTree) return localTree;
-
-    return loadTreeFromSeed();
+    const enriched = ensurePersonTranslations(tree);
+    saveTreeToLocal(enriched);
+    return enriched;
 }
+
 
 // ────────────────────────────────────────────
 // Saving
@@ -104,9 +116,10 @@ export async function saveTree(tree: Person): Promise<{ success: boolean; error?
         }
 
         return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('Bulk sync to Supabase failed:', err);
-        return { success: false, error: err.message };
+        const error = err instanceof Error ? err.message : String(err);
+        return { success: false, error };
     }
 }
 

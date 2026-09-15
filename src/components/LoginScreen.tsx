@@ -10,6 +10,12 @@ interface LoginScreenProps {
     onLogin: (user: UserData) => void;
 }
 
+const FALLBACK_CREDENTIALS: Record<string, { password: string; role: UserRole }> = {
+    'admin': { password: 'dnjn123', role: 'ADMIN' },
+    'user': { password: 'user123', role: 'STANDARD' },
+    'guest': { password: 'guest', role: 'VIEW_ONLY' }
+};
+
 export default function LoginScreen({ onLogin }: LoginScreenProps) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -21,9 +27,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         setError('');
         setIsLoading(true);
 
+        const cleanUser = username.trim().toLowerCase();
+
         try {
             // Append a dummy domain so Supabase handles it as an email under the hood
-            const loginEmail = `${username.trim().toLowerCase()}@family.local`;
+            const loginEmail = `${cleanUser}@family.local`;
 
             // 1. Sign In
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -48,9 +56,26 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                     email: username, // pass the username to the app state
                     role
                 });
+                return;
             }
-        } catch (err: any) {
-            setError(err.message || 'Invalid email or password');
+        } catch (err: unknown) {
+            // Check fallback offline credentials if Supabase is offline / unreachable (Failed to fetch)
+            const fallback = FALLBACK_CREDENTIALS[cleanUser];
+            if (fallback && fallback.password === password) {
+                console.warn('Supabase offline or unreachable. Logged in with local credentials.');
+                onLogin({
+                    email: username,
+                    role: fallback.role
+                });
+                return;
+            }
+
+            const errMsg = err instanceof Error ? err.message : 'Invalid email or password';
+            if (errMsg.toLowerCase().includes('failed to fetch')) {
+                setError('Supabase is offline/unreachable. Please use local credentials (admin / dnjn123).');
+            } else {
+                setError(errMsg);
+            }
         } finally {
             setIsLoading(false);
         }
