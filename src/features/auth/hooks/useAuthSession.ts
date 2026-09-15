@@ -37,8 +37,14 @@ export const useAuthSession = () => {
     useEffect(() => {
         let isMounted = true;
 
+        // Safety timeout so login screen ALWAYS appears even if Supabase network hangs
+        const safetyTimer = setTimeout(() => {
+            if (isMounted) setAuthLoading(false);
+        }, 1500);
+
         // Fast synchronous-like session check
         supabase.auth.getSession().then(({ data: { session }, error }) => {
+            clearTimeout(safetyTimer);
             if (error) {
                 console.error('Auth session check error:', error);
                 if (isMounted) setAuthLoading(false);
@@ -51,6 +57,7 @@ export const useAuthSession = () => {
                 if (isMounted) setAuthLoading(false);
             }
         }).catch((e: unknown) => {
+            clearTimeout(safetyTimer);
             console.error('Auth throw error:', e);
             if (isMounted) setAuthLoading(false);
         });
@@ -69,6 +76,7 @@ export const useAuthSession = () => {
 
         return () => {
             isMounted = false;
+            clearTimeout(safetyTimer);
             subscription.unsubscribe();
         };
     }, [loadUserRole]);

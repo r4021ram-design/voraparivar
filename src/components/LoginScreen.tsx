@@ -82,7 +82,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     };
 
     return (
-        <div className="fixed inset-0 min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 p-4 font-inter">
+        <div className="fixed inset-0 z-50 min-h-screen flex items-center justify-center bg-gray-50/80 dark:bg-slate-900/80 backdrop-blur-sm p-4 font-inter">
             {/* Background design elements */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
                 <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-blue-100 dark:bg-blue-900/20 rounded-full blur-[120px]" />
