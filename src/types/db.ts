@@ -27,9 +27,19 @@ export interface PersonRow {
     location_lng?: number | null;
     translations?: PersonTranslations | null;
     sort_order?: number | null;
+    family_id?: string | null;
+}
+
+export interface FamilyRow {
+    id: string;
+    name: string;
+    slug?: string | null;
+    created_at?: string;
 }
 
 export interface ProfileRow {
     id: string;
     role: string;
+    family_id?: string | null;
+    email?: string | null;
 }

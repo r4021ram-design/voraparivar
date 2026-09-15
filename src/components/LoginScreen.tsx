@@ -30,8 +30,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         const cleanUser = username.trim().toLowerCase();
 
         try {
-            // Append a dummy domain so Supabase handles it as an email under the hood
-            const loginEmail = `${cleanUser}@family.local`;
+            // Support both full email address (e.g. user@domain.com) and plain usernames
+            const loginEmail = cleanUser.includes('@') ? cleanUser : `${cleanUser}@family.local`;
 
             // 1. Sign In
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -44,17 +44,18 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             if (authData.user) {
                 const { data: profileData } = await supabase
                     .from('profiles')
-                    .select('role')
+                    .select('role, family_id')
                     .eq('id', authData.user.id)
                     .single();
                 
-                // If profileError occurs, it might be because the trigger hasn't fired yet
-                // Fallback to VIEW_ONLY if profile is completely missing
+                // Fallback to VIEW_ONLY if profile is missing
                 const role = (profileData?.role as UserRole) || 'VIEW_ONLY';
                 
                 onLogin({
-                    email: username, // pass the username to the app state
-                    role
+                    id: authData.user.id,
+                    email: username, // pass the username/email to the app state
+                    role,
+                    family_id: profileData?.family_id ?? null,
                 });
                 return;
             }

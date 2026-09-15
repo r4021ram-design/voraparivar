@@ -43,10 +43,11 @@ export function mapPersonRowToNode(row: PersonRow): Omit<Person, 'children'> {
 }
 
 /** Convert a Person node into a flat Supabase row. */
-export function mapTreeNodeToRow(node: Person, parentId: string | null): PersonRow {
+export function mapTreeNodeToRow(node: Person, parentId: string | null, familyId: string = 'vora-parivar'): PersonRow {
     return {
         id: node.id,
         parent_id: parentId,
+        family_id: familyId,
         name: node.name,
         gender: node.gender,
         relation: node.relation ?? null,
@@ -97,12 +98,12 @@ export function buildTreeFromRows(rows: PersonRow[]): Person | null {
 }
 
 /** Flatten a recursive Person tree into an array of DB rows. */
-export function flattenTreeToRows(root: Person, parentId: string | null = null): PersonRow[] {
-    const row = mapTreeNodeToRow(root, parentId);
+export function flattenTreeToRows(root: Person, parentId: string | null = null, familyId: string = 'vora-parivar'): PersonRow[] {
+    const row = mapTreeNodeToRow(root, parentId, familyId);
     let rows: PersonRow[] = [row];
     if (root.children) {
         for (const child of root.children) {
-            rows = rows.concat(flattenTreeToRows(child, root.id));
+            rows = rows.concat(flattenTreeToRows(child, root.id, familyId));
         }
     }
     return rows;

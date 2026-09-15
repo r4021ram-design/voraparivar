@@ -3,6 +3,7 @@
  * importing, exporting, and resetting tree data.
  *
  * Sources are tried in priority order: Supabase → localStorage → seed JSON.
+ * Supports multi-family trees via familyId.
  */
 
 import { supabase } from '../../../lib/supabase';
@@ -11,43 +12,59 @@ import type { PersonRow } from '../../../types/db';
 import { buildTreeFromRows, flattenTreeToRows } from './treeMapper';
 import { loadFamilyTreeData } from '../../../data';
 import { validatePerson } from '../../../utils/validateTree';
+import { ensurePersonTranslations } from '../../../utils/transliterate';
 
-const LOCAL_STORAGE_KEY = 'vanshavali_data_v3';
+export const DEFAULT_FAMILY_ID = 'vora-parivar';
+const LOCAL_STORAGE_KEY_BASE = 'vanshavali_data_v3';
+
+function getStorageKey(familyId: string = DEFAULT_FAMILY_ID): string {
+    return `${LOCAL_STORAGE_KEY_BASE}_${familyId}`;
+}
 
 // ────────────────────────────────────────────
 // Loading
 // ────────────────────────────────────────────
 
-/** Load tree from Supabase. Returns null if empty or on error. */
-export async function loadTreeFromDb(): Promise<Person | null> {
+/** Load tree from Supabase for a specific family. Returns null if empty or on error. */
+export async function loadTreeFromDb(familyId: string = DEFAULT_FAMILY_ID): Promise<Person | null> {
     try {
-        const { data: people, error } = await supabase
-            .from('people')
-            .select('*');
+        let query = supabase.from('people').select('*');
+
+        if (familyId === DEFAULT_FAMILY_ID) {
+            // For default Vora family, allow both explicit 'vora-parivar' and legacy null rows
+            query = query.or(`family_id.eq.${familyId},family_id.is.null`);
+        } else {
+            query = query.eq('family_id', familyId);
+        }
+
+        const { data: people, error } = await query;
 
         if (error) throw error;
         if (!people || people.length === 0) return null;
 
         return buildTreeFromRows(people as PersonRow[]);
     } catch (err) {
-        console.error('Failed to load tree from DB:', err);
+        console.error(`Failed to load tree from DB for family ${familyId}:`, err);
         return null;
     }
 }
 
-/** Load tree from localStorage. Returns null if absent or corrupt. */
-export function loadTreeFromLocal(): Person | null {
+/** Load tree from localStorage for a specific family. Returns null if absent or corrupt. */
+export function loadTreeFromLocal(familyId: string = DEFAULT_FAMILY_ID): Person | null {
     try {
-        const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const key = getStorageKey(familyId);
+        let raw = localStorage.getItem(key);
+        // Fallback to legacy key for default family
+        if (!raw && familyId === DEFAULT_FAMILY_ID) {
+            raw = localStorage.getItem(LOCAL_STORAGE_KEY_BASE);
+        }
         if (!raw) return null;
         return JSON.parse(raw) as Person;
     } catch (err) {
-        console.error('Failed to parse local tree:', err);
+        console.error(`Failed to parse local tree for family ${familyId}:`, err);
         return null;
     }
 }
-
-import { ensurePersonTranslations } from '../../../utils/transliterate';
 
 /** Load tree from the seed JSON file (/public/vanshavali_edited.json). */
 export async function loadTreeFromSeed(): Promise<Person> {
@@ -56,53 +73,70 @@ export async function loadTreeFromSeed(): Promise<Person> {
 
 /**
  * Load tree using priority chain: Supabase → localStorage → seed JSON.
- * Guaranteed to return a Person (seed is the last resort).
+ * Guaranteed to return a Person.
  */
-export async function loadTree(): Promise<Person> {
-    let tree: Person;
-    const dbTree = await loadTreeFromDb();
+export async function loadTree(familyId: string = DEFAULT_FAMILY_ID): Promise<Person> {
+    let tree: Person | null = null;
+    const dbTree = await loadTreeFromDb(familyId);
     if (dbTree) {
         tree = dbTree;
     } else {
-        const localTree = loadTreeFromLocal();
+        const localTree = loadTreeFromLocal(familyId);
         if (localTree) {
             tree = localTree;
-        } else {
+        } else if (familyId === DEFAULT_FAMILY_ID) {
             tree = await loadTreeFromSeed();
+        } else {
+            // Default placeholder for a freshly created family
+            tree = {
+                id: `root-${familyId}`,
+                name: 'Mukhya Purush',
+                generation: 1,
+                gender: 'MALE',
+                relation: 'Mukhya Purush',
+                children: []
+            };
         }
     }
 
     const enriched = ensurePersonTranslations(tree);
-    saveTreeToLocal(enriched);
+    saveTreeToLocal(enriched, familyId);
     return enriched;
 }
-
 
 // ────────────────────────────────────────────
 // Saving
 // ────────────────────────────────────────────
 
 /** Persist tree to localStorage. */
-export function saveTreeToLocal(tree: Person): void {
+export function saveTreeToLocal(tree: Person, familyId: string = DEFAULT_FAMILY_ID): void {
     try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tree));
+        localStorage.setItem(getStorageKey(familyId), JSON.stringify(tree));
     } catch (err) {
-        console.error('Failed to save tree to localStorage:', err);
+        console.error(`Failed to save tree to localStorage for family ${familyId}:`, err);
     }
 }
 
 /**
- * Full sync of the current tree snapshot to Supabase.
- * Upserts all nodes and deletes orphans.
+ * Full sync of the current tree snapshot to Supabase for a specific family.
+ * Upserts all nodes and deletes orphans belonging ONLY to this family.
  */
-export async function saveTree(tree: Person): Promise<{ success: boolean; error?: string }> {
+export async function saveTree(tree: Person, familyId: string = DEFAULT_FAMILY_ID): Promise<{ success: boolean; error?: string }> {
     try {
-        const rows = flattenTreeToRows(tree);
+        const rows = flattenTreeToRows(tree, null, familyId);
 
         const { error: upsertError } = await supabase.from('people').upsert(rows);
         if (upsertError) return { success: false, error: `Upsert Error: ${upsertError.message}` };
 
-        const { data: currentDbNodes, error: fetchError } = await supabase.from('people').select('id');
+        // Query only this family's current nodes to find orphans to delete
+        let query = supabase.from('people').select('id');
+        if (familyId === DEFAULT_FAMILY_ID) {
+            query = query.or(`family_id.eq.${familyId},family_id.is.null`);
+        } else {
+            query = query.eq('family_id', familyId);
+        }
+
+        const { data: currentDbNodes, error: fetchError } = await query;
         if (fetchError) return { success: false, error: `Fetch IDs Error: ${fetchError.message}` };
 
         if (currentDbNodes) {
@@ -117,7 +151,7 @@ export async function saveTree(tree: Person): Promise<{ success: boolean; error?
 
         return { success: true };
     } catch (err: unknown) {
-        console.error('Bulk sync to Supabase failed:', err);
+        console.error(`Bulk sync to Supabase failed for family ${familyId}:`, err);
         const error = err instanceof Error ? err.message : String(err);
         return { success: false, error };
     }
@@ -128,9 +162,13 @@ export async function saveTree(tree: Person): Promise<{ success: boolean; error?
 // ────────────────────────────────────────────
 
 /** Clear localStorage and reload from seed. */
-export async function resetTree(): Promise<Person> {
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
-    return loadTreeFromSeed();
+export async function resetTree(familyId: string = DEFAULT_FAMILY_ID): Promise<Person> {
+    localStorage.removeItem(getStorageKey(familyId));
+    if (familyId === DEFAULT_FAMILY_ID) {
+        localStorage.removeItem(LOCAL_STORAGE_KEY_BASE);
+        return loadTreeFromSeed();
+    }
+    return loadTree(familyId);
 }
 
 // ────────────────────────────────────────────
@@ -138,13 +176,13 @@ export async function resetTree(): Promise<Person> {
 // ────────────────────────────────────────────
 
 /** Export the tree as a downloadable JSON file. */
-export function exportTree(tree: Person): void {
+export function exportTree(tree: Person, familyName: string = 'Family'): void {
     const jsonString = JSON.stringify({ tree }, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'vanshavali_edited.json';
+    a.download = `${familyName.toLowerCase().replace(/\s+/g, '_')}_tree.json`;
     a.click();
     URL.revokeObjectURL(url);
 }

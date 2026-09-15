@@ -17,17 +17,19 @@ export const useAuthSession = () => {
         try {
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('role')
+                .select('role, family_id')
                 .eq('id', authUser.id)
                 .single();
 
             setUser({
+                id: authUser.id,
                 email: authUser.email ?? '',
                 role: (profile?.role as UserRole) || 'VIEW_ONLY',
+                family_id: profile?.family_id ?? null,
             });
         } catch (e) {
             console.error('Failed to load user role:', e);
-            setUser({ email: authUser.email ?? '', role: 'VIEW_ONLY' });
+            setUser({ id: authUser.id, email: authUser.email ?? '', role: 'VIEW_ONLY', family_id: null });
         } finally {
             setAuthLoading(false);
         }

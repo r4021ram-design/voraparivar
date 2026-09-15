@@ -17,6 +17,9 @@ import {
     FileJson,
     Image,
     FileText,
+    Building2,
+    Shield,
+    Plus,
 } from 'lucide-react';
 import clsx from 'clsx';
 import type { Language } from '../i18n';
@@ -24,6 +27,7 @@ import { translations } from '../i18n';
 import type { UserData } from '../types/auth';
 import type { Theme } from '../types/ui';
 import type { TreeStatistics } from '../features/family-tree/utils/treeTransforms';
+import type { Family } from '../features/families/types';
 
 interface TopNavigationDockProps {
     stats: TreeStatistics;
@@ -48,6 +52,10 @@ interface TopNavigationDockProps {
     onPrint: () => void;
     onReset: () => void;
     onLogout: () => void;
+    families?: Family[];
+    currentFamilyId?: string;
+    onSelectFamily?: (familyId: string) => void;
+    onOpenAdminModal?: () => void;
 }
 
 export default function TopNavigationDock({
@@ -73,11 +81,17 @@ export default function TopNavigationDock({
     onPrint,
     onReset,
     onLogout,
+    families,
+    currentFamilyId,
+    onSelectFamily,
+    onOpenAdminModal,
 }: TopNavigationDockProps) {
     const [isExportOpen, setIsExportOpen] = useState(false);
     const [isGenMenuOpen, setIsGenMenuOpen] = useState(false);
+    const [isFamilyMenuOpen, setIsFamilyMenuOpen] = useState(false);
     const exportRef = useRef<HTMLDivElement>(null);
     const genRef = useRef<HTMLDivElement>(null);
+    const familyRef = useRef<HTMLDivElement>(null);
 
     const t = translations[language];
 
@@ -89,6 +103,9 @@ export default function TopNavigationDock({
             }
             if (genRef.current && !genRef.current.contains(e.target as HTMLElement)) {
                 setIsGenMenuOpen(false);
+            }
+            if (familyRef.current && !familyRef.current.contains(e.target as HTMLElement)) {
+                setIsFamilyMenuOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -104,7 +121,7 @@ export default function TopNavigationDock({
                     : "bg-white/85 dark:bg-slate-900/85 border-white/50 dark:border-slate-800/80 shadow-black/5 text-gray-900 dark:text-gray-100"
             )}>
                 {/* Left: Brand & Stats */}
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2 sm:gap-2.5">
                     <button
                         onClick={onFocusRoot}
                         className="flex items-center gap-2 text-left group transition-transform active:scale-95"
@@ -116,14 +133,14 @@ export default function TopNavigationDock({
                                 ? "bg-[#800000] text-[#ffd700]"
                                 : "bg-blue-600 text-white"
                         )}>
-                            व
+                            {families?.find(f => f.id === currentFamilyId)?.name.charAt(0) || 'व'}
                         </div>
                         <div className="hidden sm:flex flex-col leading-none">
                             <span className={clsx(
-                                "font-black text-sm tracking-tight",
+                                "font-black text-sm tracking-tight max-w-[130px] truncate",
                                 theme === 'rajashahi' ? "text-[#800000]" : "text-gray-900 dark:text-white"
                             )}>
-                                वोरा वंशावली
+                                {families?.find(f => f.id === currentFamilyId)?.name || 'વોરા પરિવાર'}
                             </span>
                             <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
                                 Family Tree
@@ -131,8 +148,74 @@ export default function TopNavigationDock({
                         </div>
                     </button>
 
+                    {/* Family Selector for Admin */}
+                    {user.role === 'ADMIN' && families && families.length > 0 && (
+                        <div className="relative" ref={familyRef}>
+                            <button
+                                onClick={() => setIsFamilyMenuOpen(!isFamilyMenuOpen)}
+                                className={clsx(
+                                    "flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold transition-all border shadow-xs",
+                                    theme === 'rajashahi'
+                                        ? "bg-[#fffdf8] border-[#ffd700] text-[#800000] hover:bg-[#fff9e6]"
+                                        : "bg-gray-100/90 dark:bg-slate-800/90 hover:bg-gray-200/90 dark:hover:bg-slate-700/90 border-gray-200/80 dark:border-slate-700/80 text-gray-800 dark:text-gray-200"
+                                )}
+                                title="Switch Family Tree"
+                            >
+                                <Building2 size={13} className="text-amber-500 shrink-0" />
+                                <span className="max-w-[80px] sm:max-w-[120px] truncate">
+                                    {families.find(f => f.id === currentFamilyId)?.name || 'Families'}
+                                </span>
+                                <ChevronDown size={12} className="text-gray-400 shrink-0" />
+                            </button>
+
+                            {isFamilyMenuOpen && (
+                                <div className="absolute top-full mt-1.5 left-0 w-56 rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-gray-200 dark:border-slate-800 p-1.5 z-50 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-150 text-xs">
+                                    <div className="px-2.5 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                        Switch Family
+                                    </div>
+                                    {families.map((fam) => {
+                                        const isSelected = fam.id === currentFamilyId;
+                                        return (
+                                            <button
+                                                key={fam.id}
+                                                onClick={() => {
+                                                    onSelectFamily?.(fam.id);
+                                                    setIsFamilyMenuOpen(false);
+                                                }}
+                                                className={clsx(
+                                                    "px-2.5 py-1.5 rounded-xl text-left font-semibold flex items-center justify-between transition-colors",
+                                                    isSelected
+                                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold"
+                                                        : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+                                                )}
+                                            >
+                                                <span className="truncate">{fam.name}</span>
+                                                {fam.memberCount !== undefined && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-slate-800 text-gray-500">
+                                                        {fam.memberCount}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                    <div className="border-t border-gray-100 dark:border-slate-800 my-1"></div>
+                                    <button
+                                        onClick={() => {
+                                            onOpenAdminModal?.();
+                                            setIsFamilyMenuOpen(false);
+                                        }}
+                                        className="px-2.5 py-1.5 rounded-xl text-left font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 flex items-center gap-1.5"
+                                    >
+                                        <Plus size={13} />
+                                        <span>Manage Families & Users</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Stats Badge */}
-                    <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gray-100/70 dark:bg-slate-800/70 text-[11px] font-bold text-gray-600 dark:text-gray-300 border border-gray-200/50 dark:border-slate-700/50">
+                    <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gray-100/70 dark:bg-slate-800/70 text-[11px] font-bold text-gray-600 dark:text-gray-300 border border-gray-200/50 dark:border-slate-700/50">
                         <span className="text-blue-600 dark:text-blue-400">{stats.totalMembers}</span>
                         <span>{language === 'HI' ? 'सदस्य' : language === 'GU' ? 'સભ્યો' : 'Members'}</span>
                         <span className="text-gray-300 dark:text-slate-600">•</span>
@@ -321,6 +404,18 @@ export default function TopNavigationDock({
                             <Crown size={14} />
                         </button>
                     </div>
+
+                    {/* Admin Management Button */}
+                    {user.role === 'ADMIN' && onOpenAdminModal && (
+                        <button
+                            onClick={onOpenAdminModal}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 text-xs font-bold border border-amber-500/30 transition-all active:scale-95 shadow-xs"
+                            title="Admin Management Portal"
+                        >
+                            <Shield size={14} className="text-amber-600 dark:text-amber-400" />
+                            <span className="hidden md:inline">Admin Panel</span>
+                        </button>
+                    )}
 
                     {/* Export Dropdown Menu */}
                     <div className="relative" ref={exportRef}>

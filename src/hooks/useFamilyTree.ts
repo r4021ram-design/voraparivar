@@ -13,8 +13,8 @@ import {
     deletePersonFromTree,
 } from '../features/family-tree/utils/treeTransforms';
 
-export const useFamilyTree = (userRole: string) => {
-    const { data: dbData, loading: dbLoading, refresh: refreshDb } = useSupabaseTree();
+export const useFamilyTree = (userRole: string, familyId: string = 'vora-parivar') => {
+    const { data: dbData, loading: dbLoading, refresh: refreshDb } = useSupabaseTree(familyId);
     const [currentData, setCurrentData] = useState<Person>(EMPTY_ROOT);
     const [isBulkTranslating, setIsBulkTranslating] = useState(false);
     const [translationProgress, setTranslationProgress] = useState<{ current: number, total: number } | null>(null);
@@ -24,27 +24,29 @@ export const useFamilyTree = (userRole: string) => {
     // Sync from DB or Local Storage on load
     useEffect(() => {
         if (dbData) {
-            console.log("Loaded data from Supabase");
+            console.log(`Loaded data for family ${familyId} from Supabase`);
             setCurrentData(dbData);
             resetHistory(dbData);
         } else if (!dbLoading) {
-            console.log("No DB data or Error, checking local storage.");
-            const local = localStorage.getItem('vanshavali_data_v3');
+            const storageKey = `vanshavali_data_v3_${familyId}`;
+            const local = localStorage.getItem(storageKey) || (familyId === 'vora-parivar' ? localStorage.getItem('vanshavali_data_v3') : null);
             if (local) {
                 try {
                     const parsed = JSON.parse(local);
                     setCurrentData(parsed);
+                    resetHistory(parsed);
                 } catch (e) {
                     console.error("Failed to parse local storage", e);
                 }
             }
         }
-    }, [dbData, dbLoading, resetHistory]);
+    }, [dbData, dbLoading, familyId, resetHistory]);
 
     const handleSaveEdit = useCallback(async (updatedPerson: Person) => {
         setCurrentData(prev => {
             const newData = updatePersonInTree(prev, updatedPerson);
             setTimeout(() => pushState(newData), 0);
+            saveTreeToLocal(newData, familyId);
             return newData;
         });
 
@@ -72,6 +74,7 @@ export const useFamilyTree = (userRole: string) => {
                 location_lng: updatedPerson.location?.lng,
                 translations: updatedPerson.translations,
                 sort_order: updatedPerson.sort_order,
+                family_id: familyId,
             }).eq('id', updatedPerson.id);
 
             if (error) throw error;
@@ -79,7 +82,7 @@ export const useFamilyTree = (userRole: string) => {
         } catch (e) {
             console.error("Error updating DB:", e);
         }
-    }, [refreshDb, pushState]);
+    }, [familyId, refreshDb, pushState]);
 
     const handleAddChild = useCallback(async (parentId: string, type: 'son' | 'daughter') => {
         const newChildId = crypto.randomUUID();
@@ -104,6 +107,7 @@ export const useFamilyTree = (userRole: string) => {
             };
             const newData = addChildToTree(prevData, parentId, newChild);
             setTimeout(() => pushState(newData), 0);
+            saveTreeToLocal(newData, familyId);
             return newData;
         });
 
@@ -115,22 +119,24 @@ export const useFamilyTree = (userRole: string) => {
                 gender: isMale ? 'MALE' : 'FEMALE',
                 relation: type === 'son' ? 'Son' : 'Daughter',
                 generation: parentGen + 1,
+                family_id: familyId,
             });
             if (error) throw error;
             refreshDb();
         } catch (e) {
             console.error("Error adding child to DB:", e);
         }
-    }, [refreshDb, pushState]);
+    }, [familyId, refreshDb, pushState]);
 
     const handleDelete = useCallback(async (personId: string) => {
-        if (personId === 'root') return;
+        if (personId.startsWith('root')) return;
         if (!confirm("Are you sure? This will delete the person and ALL descendants.")) return;
 
         setCurrentData((prevData) => {
             const newData = deletePersonFromTree(prevData, personId);
             if (!newData) return prevData;
             setTimeout(() => pushState(newData), 0);
+            saveTreeToLocal(newData, familyId);
             return newData;
         });
 
@@ -141,7 +147,7 @@ export const useFamilyTree = (userRole: string) => {
         } catch (e) {
             console.error("Failed to delete from DB:", e);
         }
-    }, [refreshDb, pushState]);
+    }, [familyId, refreshDb, pushState]);
 
     const handleBulkTranslate = async () => {
         if (!currentData || isBulkTranslating) return;
@@ -158,9 +164,9 @@ export const useFamilyTree = (userRole: string) => {
             setCurrentData(updatedTree);
             pushState(updatedTree);
             
-            saveTreeToLocal(updatedTree);
+            saveTreeToLocal(updatedTree, familyId);
 
-            const syncResult = await bulkSyncTreeToDb(updatedTree);
+            const syncResult = await bulkSyncTreeToDb(updatedTree, familyId);
             if (syncResult.success) refreshDb();
         } catch (error) {
             console.error("Bulk translation failed:", error);
@@ -175,24 +181,26 @@ export const useFamilyTree = (userRole: string) => {
         const previousState = undo();
         if (previousState) {
             setCurrentData(previousState);
-            if (userRole === 'ADMIN') {
-                const success = await bulkSyncTreeToDb(previousState);
-                if (success) refreshDb();
+            saveTreeToLocal(previousState, familyId);
+            if (userRole === 'ADMIN' || userRole === 'STANDARD') {
+                const res = await bulkSyncTreeToDb(previousState, familyId);
+                if (res.success) refreshDb();
             }
         }
-    }, [canUndo, undo, userRole, refreshDb]);
+    }, [canUndo, undo, userRole, familyId, refreshDb]);
 
     const handleRedo = useCallback(async () => {
         if (!canRedo) return;
         const nextState = redo();
         if (nextState) {
             setCurrentData(nextState);
-            if (userRole === 'ADMIN') {
-                const success = await bulkSyncTreeToDb(nextState);
-                if (success) refreshDb();
+            saveTreeToLocal(nextState, familyId);
+            if (userRole === 'ADMIN' || userRole === 'STANDARD') {
+                const res = await bulkSyncTreeToDb(nextState, familyId);
+                if (res.success) refreshDb();
             }
         }
-    }, [canRedo, redo, userRole, refreshDb]);
+    }, [canRedo, redo, userRole, familyId, refreshDb]);
 
     return {
         currentData,

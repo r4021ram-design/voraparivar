@@ -45,6 +45,9 @@ import { useTreePreferences } from './features/family-tree/hooks/useTreePreferen
 import { useTreeSelection } from './features/family-tree/hooks/useTreeSelection';
 import { useTreeLayout } from './features/family-tree/hooks/useTreeLayout';
 import type { UserData } from './types/auth';
+import { AdminManagementModal } from './features/admin/components/AdminManagementModal';
+import { fetchFamilies, DEFAULT_FAMILY_ID } from './features/families/services/familyService';
+import type { Family } from './features/families/types';
 
 const nodeTypes = {
   familyNode: FamilyNode,
@@ -60,6 +63,24 @@ interface FamilyTreeFlowProps {
 }
 
 const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
+  // Multi-Family State
+  const [families, setFamilies] = useState<Family[]>([]);
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string>(
+    user.family_id || DEFAULT_FAMILY_ID
+  );
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchFamilies().then(setFamilies);
+  }, []);
+
+  // Sync familyId if user profile has a specific family assigned
+  useEffect(() => {
+    if (user.role !== 'ADMIN' && user.family_id) {
+      setSelectedFamilyId(user.family_id);
+    }
+  }, [user.family_id, user.role]);
+
   const {
     currentData,
     setCurrentData,
@@ -72,7 +93,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     canUndo,
     canRedo,
     refreshDb
-  } = useFamilyTree(user.role);
+  } = useFamilyTree(user.role, selectedFamilyId);
 
   // UI state
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
@@ -375,6 +396,10 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           onPrint={handlePrint}
           onReset={handleReset}
           onLogout={onLogout}
+          families={families}
+          currentFamilyId={selectedFamilyId}
+          onSelectFamily={(famId) => setSelectedFamilyId(famId)}
+          onOpenAdminModal={() => setIsAdminModalOpen(true)}
         />
 
         {/* Mobile Left Drawer Trigger */}
@@ -395,7 +420,11 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
             {prefs.headerVerse}
           </p>
           <h1 className="text-xl sm:text-3xl font-black tracking-tight text-gray-900 dark:text-white rajashahi:text-[#800000] drop-shadow-sm mt-0.5 flex items-center gap-1.5 pointer-events-auto">
-            <span>{prefs.headerTitle}</span>
+            <span>
+              {selectedFamilyId !== DEFAULT_FAMILY_ID && families.find(f => f.id === selectedFamilyId)
+                ? `${families.find(f => f.id === selectedFamilyId)?.name} વંશાવલી`
+                : prefs.headerTitle}
+            </span>
             <span className="hidden sm:inline text-blue-600 rajashahi:text-[#ffd700]">|</span>
             {user.role === 'ADMIN' && (
               <button
@@ -564,6 +593,21 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
         />
 
         <TranslationOverlay progress={translationProgress} />
+
+        {isAdminModalOpen && (
+          <AdminManagementModal
+            isOpen={isAdminModalOpen}
+            onClose={() => {
+              setIsAdminModalOpen(false);
+              fetchFamilies().then(setFamilies);
+            }}
+            currentFamilyId={selectedFamilyId}
+            onSelectFamily={(famId) => {
+              setSelectedFamilyId(famId);
+              fetchFamilies().then(setFamilies);
+            }}
+          />
+        )}
       </div>
     </div>
   );
