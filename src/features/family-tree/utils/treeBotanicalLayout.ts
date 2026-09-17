@@ -88,8 +88,7 @@ interface LayoutNodeInternal {
     children: LayoutNodeInternal[];
 }
 
-const LEVEL_HEIGHT = 160; // Vertical distance per generation
-const LEAF_HORIZONTAL_SPACING = 80; // Compact natural gap per leaf to prevent artificial voids
+const LEAF_HORIZONTAL_SPACING = 68; // Clean, natural spacing for banyan leaves without empty voids
 
 /**
  * Counts total leaf descendants to allocate proportionate horizontal spread.
@@ -114,17 +113,13 @@ function computeLeafCounts(node: Person, generation = 1): LayoutNodeInternal {
 }
 
 /**
- * Assigns X and base Y coordinates organically based on cumulative subtree leaf spans.
+ * Assigns X coordinates organically based on cumulative subtree leaf spans.
  */
-function assignCoordinates(
+function assignXCoordinates(
     node: LayoutNodeInternal,
-    leftBoundary: number,
-    treeHeight: number
+    leftBoundary: number
 ): number {
     const totalWidth = node.leafCount * LEAF_HORIZONTAL_SPACING;
-
-    // Y grows upward: root is near the base (bottom), higher generations grow upward (smaller Y)
-    node.y = treeHeight - (node.generation - 1) * LEVEL_HEIGHT;
 
     if (node.children.length === 0) {
         node.x = leftBoundary + totalWidth / 2;
@@ -135,7 +130,7 @@ function assignCoordinates(
     const childMidpoints: number[] = [];
 
     for (const child of node.children) {
-        currentLeft = assignCoordinates(child, currentLeft, treeHeight);
+        currentLeft = assignXCoordinates(child, currentLeft);
         childMidpoints.push(child.x);
     }
 
@@ -143,6 +138,24 @@ function assignCoordinates(
     node.x = (childMidpoints[0] + childMidpoints[childMidpoints.length - 1]) / 2;
 
     return leftBoundary + totalWidth;
+}
+
+/**
+ * Assigns Y coordinates proportionally:
+ * - Linear founding ancestors with 1 child sit compactly on the sacred trunk column (75px)
+ * - Branching generations fan out with graceful 120px bough spacing
+ */
+function assignYCoordinates(
+    node: LayoutNodeInternal,
+    currentY: number
+) {
+    node.y = currentY;
+
+    for (const child of node.children) {
+        const isLinearTrunk = node.children.length <= 1;
+        const verticalGap = isLinearTrunk ? 75 : 120;
+        assignYCoordinates(child, currentY - verticalGap);
+    }
 }
 
 /**
@@ -160,11 +173,11 @@ function createOrganicBranchPath(
     const deltaY = endY - startY; // negative since growing upwards
 
     // Organic wobble modulated by branch generation for natural bark feel
-    const wobbleScale = Math.max(3, 10 - generation * 1.5);
+    const wobbleScale = Math.max(3, 9 - generation * 1.2);
     const wobble = Math.sin(startX * 0.03 + endX * 0.03) * wobbleScale;
 
     // Control point 1: rises vertically from parent trunk/bough before sweeping outward
-    const cp1X = startX + deltaX * 0.1 + wobble;
+    const cp1X = startX + deltaX * 0.08 + wobble;
     const cp1Y = startY + deltaY * 0.65;
 
     // Control point 2: gracefully eases vertically into child leaf stem
@@ -179,10 +192,10 @@ function createOrganicBranchPath(
  */
 function getBranchThickness(generation: number): number {
     switch (generation) {
-        case 1: return 34; // Grand primary bough
-        case 2: return 24; // Secondary boughs
-        case 3: return 16; // Tertiary branches
-        case 4: return 10; // Intermediate twigs
+        case 1: return 36; // Grand primary bough
+        case 2: return 26; // Secondary boughs
+        case 3: return 18; // Tertiary branches
+        case 4: return 11; // Intermediate twigs
         default: return 6; // Delicate outer twigs
     }
 }
@@ -197,20 +210,14 @@ export function calculateBotanicalLayout(
     // 1. Compute tree depth and leaf spans
     const internalRoot = computeLeafCounts(rootPerson, 1);
 
-    // Find max generation
-    let maxGen = 1;
-    function findMaxGen(n: LayoutNodeInternal) {
-        if (n.generation > maxGen) maxGen = n.generation;
-        n.children.forEach(findMaxGen);
-    }
-    findMaxGen(internalRoot);
+    // 2. Position all nodes horizontally (compact 68px leaf span)
+    assignXCoordinates(internalRoot, 80);
 
-    const totalTreeHeight = maxGen * LEVEL_HEIGHT + 260; // generous space for trunk and canopy
+    // 3. Position all nodes vertically from base trunk upwards
+    const BASE_TREE_Y = 820; // Anchor root at base Y
+    assignYCoordinates(internalRoot, BASE_TREE_Y);
 
-    // 2. Position all nodes horizontally and vertically
-    assignCoordinates(internalRoot, 100, totalTreeHeight);
-
-    // 3. Find horizontal span to compute natural dome arching (छतरीनुमा फैलाव)
+    // 4. Find horizontal span to compute natural dome arching (छतरीनुमा फैलाव)
     let minLeafX = Infinity;
     let maxLeafX = -Infinity;
     function findLeafSpan(n: LayoutNodeInternal) {
@@ -220,18 +227,18 @@ export function calculateBotanicalLayout(
     }
     findLeafSpan(internalRoot);
 
-    const treeSpanWidth = Math.max(maxLeafX - minLeafX, 800);
+    const treeSpanWidth = Math.max(maxLeafX - minLeafX, 600);
     const treeCenterX = (minLeafX + maxLeafX) / 2;
 
     // Apply natural radial dome canopy arch: center branches rise higher, outer branches drape gracefully
     function applyCanopyDome(n: LayoutNodeInternal) {
-        if (n.generation > 2) {
+        if (n.children.length === 0 || n.generation > 2) {
             const distFromCenter = Math.abs(n.x - treeCenterX);
-            const normalizedDist = Math.min(1, distFromCenter / (treeSpanWidth * 0.55));
-            // Cosine dome curve: up to 130px lift at center crown, tapering outward
-            const domeLift = Math.cos(normalizedDist * (Math.PI / 2)) * 130;
+            const normalizedDist = Math.min(1, distFromCenter / (treeSpanWidth * 0.52));
+            // Cosine dome curve: up to 90px lift at center crown, tapering outward
+            const domeLift = Math.cos(normalizedDist * (Math.PI / 2)) * 90;
             // Subtle organic stagger so siblings don't sit on a robotic ruler
-            const stagger = Math.sin(n.x * 0.08) * 16;
+            const stagger = Math.sin(n.x * 0.08) * 14;
             n.y = n.y - domeLift + stagger;
         }
         n.children.forEach(applyCanopyDome);
@@ -306,18 +313,18 @@ export function calculateBotanicalLayout(
             });
 
             // For major branches (Gen 1 to Gen 3 with notable horizontal spread), generate hanging aerial roots
-            if (parent.generation <= 3 && Math.abs(node.x - parent.x) > 120) {
-                const midX = (parent.x + node.x) / 2 + (Math.sin(node.x) * 15);
+            if (parent.generation <= 3 && Math.abs(node.x - parent.x) > 100) {
+                const midX = (parent.x + node.x) / 2 + (Math.sin(node.x) * 12);
                 const midY = (parent.y + node.y) / 2;
-                const rootDropLength = Math.min(140, totalTreeHeight - midY);
+                const rootDropLength = Math.min(100, Math.max(40, BASE_TREE_Y - midY));
 
                 // Hanging fibrous banyan aerial root with gentle organic waviness
-                const rootPath = `M ${midX.toFixed(1)} ${midY.toFixed(1)} Q ${(midX + 6).toFixed(1)} ${(midY + rootDropLength * 0.5).toFixed(1)} ${(midX - 2).toFixed(1)} ${(midY + rootDropLength).toFixed(1)}`;
+                const rootPath = `M ${midX.toFixed(1)} ${midY.toFixed(1)} Q ${(midX + 5).toFixed(1)} ${(midY + rootDropLength * 0.5).toFixed(1)} ${(midX - 2).toFixed(1)} ${(midY + rootDropLength).toFixed(1)}`;
 
                 aerialRoots.push({
                     id: `aerial-root-${parent.person.id}-${node.person.id}`,
                     pathData: rootPath,
-                    thickness: Math.max(1.5, 3.5 - parent.generation * 0.8),
+                    thickness: Math.max(1.5, 3.2 - parent.generation * 0.7),
                 });
             }
         }
@@ -340,13 +347,14 @@ export function calculateBotanicalLayout(
         if (n.y > maxY) maxY = n.y;
     }
 
-    // Add padding for foliage canopy clouds and earth mound
-    minX -= 200;
-    maxX += 200;
-    minY -= 160;
-    maxY += 260;
-
     const rootNode = nodes.find(n => n.isRoot) || nodes[0];
+    const trunkBaseY = rootNode.y + 120; // Trunk firmly beneath the founding ancestor
+
+    // Add padding for foliage canopy clouds and earth mound
+    minX -= 90;
+    maxX += 90;
+    minY -= 80;
+    maxY = trunkBaseY + 70; // Mound base inside bounds
 
     return {
         nodes,
@@ -358,12 +366,12 @@ export function calculateBotanicalLayout(
             maxX,
             minY,
             maxY,
-            width: Math.max(maxX - minX, 1000),
-            height: Math.max(maxY - minY, 800),
+            width: Math.max(maxX - minX, 800),
+            height: Math.max(maxY - minY, 600),
         },
         trunk: {
             baseX: rootNode.x,
-            baseY: maxY - 50,
+            baseY: trunkBaseY,
             topX: rootNode.x,
             topY: rootNode.y,
             width: 100,
