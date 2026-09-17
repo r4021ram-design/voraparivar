@@ -62,16 +62,17 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
         const rect = containerRef.current.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
         
-        const topNavPadding = 110;
-        const bottomNavPadding = 75;
-        const horizontalPadding = 60;
+        // Generous breathing margins so neither the sides nor the top/bottom ever cut off
+        const topNavPadding = 125;
+        const bottomNavPadding = 80;
+        const horizontalPadding = 100;
 
         const availableWidth = rect.width - horizontalPadding;
         const availableHeight = rect.height - topNavPadding - bottomNavPadding;
 
         const scaleX = availableWidth / layout.bounds.width;
         const scaleY = availableHeight / layout.bounds.height;
-        const initScale = Math.min(scaleX, scaleY, 0.95);
+        const initScale = Math.min(scaleX, scaleY, 0.90);
 
         const treeCenterX = (layout.bounds.minX + layout.bounds.maxX) / 2;
         

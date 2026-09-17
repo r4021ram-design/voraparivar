@@ -173,16 +173,19 @@ function createOrganicBranchPath(
     const deltaY = endY - startY; // negative since growing upwards
 
     // Organic wobble modulated by branch generation for natural bark feel
-    const wobbleScale = Math.max(3, 9 - generation * 1.2);
+    const wobbleScale = Math.max(3, 8 - generation * 1.1);
     const wobble = Math.sin(startX * 0.03 + endX * 0.03) * wobbleScale;
 
-    // Control point 1: rises vertically from parent trunk/bough before sweeping outward
-    const cp1X = startX + deltaX * 0.08 + wobble;
-    const cp1Y = startY + deltaY * 0.65;
+    // Upward sweeping bough arch so wide horizontal branches curve naturally like real tree limbs
+    const archHeight = Math.min(80, Math.abs(deltaX) * 0.12);
 
-    // Control point 2: gracefully eases vertically into child leaf stem
-    const cp2X = endX - deltaX * 0.12 - wobble * 0.5;
-    const cp2Y = startY + deltaY * 0.90;
+    // Control point 1: rises vertically from parent trunk/bough and arches upward
+    const cp1X = startX + deltaX * 0.12 + wobble;
+    const cp1Y = startY + deltaY * 0.55 - archHeight;
+
+    // Control point 2: sweeps over and descends/eases into child stem
+    const cp2X = endX - deltaX * 0.15 - wobble * 0.5;
+    const cp2Y = startY + deltaY * 0.88 - archHeight * 0.25;
 
     return `M ${startX.toFixed(1)} ${startY.toFixed(1)} C ${cp1X.toFixed(1)} ${cp1Y.toFixed(1)}, ${cp2X.toFixed(1)} ${cp2Y.toFixed(1)}, ${endX.toFixed(1)} ${endY.toFixed(1)}`;
 }
@@ -192,11 +195,11 @@ function createOrganicBranchPath(
  */
 function getBranchThickness(generation: number): number {
     switch (generation) {
-        case 1: return 36; // Grand primary bough
-        case 2: return 26; // Secondary boughs
-        case 3: return 18; // Tertiary branches
-        case 4: return 11; // Intermediate twigs
-        default: return 6; // Delicate outer twigs
+        case 1: return 26; // Grand primary bough
+        case 2: return 20; // Secondary boughs
+        case 3: return 14; // Tertiary branches
+        case 4: return 9;  // Intermediate twigs
+        default: return 5; // Delicate outer twigs
     }
 }
 
@@ -350,11 +353,11 @@ export function calculateBotanicalLayout(
     const rootNode = nodes.find(n => n.isRoot) || nodes[0];
     const trunkBaseY = rootNode.y + 120; // Trunk firmly beneath the founding ancestor
 
-    // Add padding for foliage canopy clouds and earth mound
-    minX -= 90;
-    maxX += 90;
-    minY -= 80;
-    maxY = trunkBaseY + 70; // Mound base inside bounds
+    // Add generous padding for foliage canopy clouds, labels, quick-actions, and earth mound
+    minX -= 180;
+    maxX += 180;
+    minY -= 140;
+    maxY = trunkBaseY + 110; // Mound base inside bounds with breathing room
 
     return {
         nodes,
