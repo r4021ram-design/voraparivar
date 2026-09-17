@@ -88,8 +88,8 @@ interface LayoutNodeInternal {
     children: LayoutNodeInternal[];
 }
 
-const LEVEL_HEIGHT = 165; // Vertical distance per generation
-const LEAF_HORIZONTAL_SPACING = 100; // Balanced gap per leaf to prevent massive empty voids
+const LEVEL_HEIGHT = 160; // Vertical distance per generation
+const LEAF_HORIZONTAL_SPACING = 80; // Compact natural gap per leaf to prevent artificial voids
 
 /**
  * Counts total leaf descendants to allocate proportionate horizontal spread.
@@ -114,7 +114,7 @@ function computeLeafCounts(node: Person, generation = 1): LayoutNodeInternal {
 }
 
 /**
- * Assigns X coordinates organically based on cumulative subtree leaf spans.
+ * Assigns X and base Y coordinates organically based on cumulative subtree leaf spans.
  */
 function assignCoordinates(
     node: LayoutNodeInternal,
@@ -147,7 +147,7 @@ function assignCoordinates(
 
 /**
  * Creates natural organic wooden curve connecting parent branch to child branch.
- * Enforces vertical-first emergence and upward-arcing bough trajectories.
+ * Enforces vertical-first emergence, sweeping bough trajectory, and gentle organic wobble.
  */
 function createOrganicBranchPath(
     startX: number,
@@ -160,16 +160,16 @@ function createOrganicBranchPath(
     const deltaY = endY - startY; // negative since growing upwards
 
     // Organic wobble modulated by branch generation for natural bark feel
-    const wobbleScale = Math.max(4, 12 - generation * 2);
-    const wobble = Math.sin(startX * 0.04 + endX * 0.04) * wobbleScale;
+    const wobbleScale = Math.max(3, 10 - generation * 1.5);
+    const wobble = Math.sin(startX * 0.03 + endX * 0.03) * wobbleScale;
 
-    // Control point 1: rises vertically from parent branch before curving outward
-    const cp1X = startX + deltaX * 0.12 + wobble;
-    const cp1Y = startY + deltaY * 0.55;
+    // Control point 1: rises vertically from parent trunk/bough before sweeping outward
+    const cp1X = startX + deltaX * 0.1 + wobble;
+    const cp1Y = startY + deltaY * 0.65;
 
     // Control point 2: gracefully eases vertically into child leaf stem
-    const cp2X = endX - deltaX * 0.15 - wobble * 0.5;
-    const cp2Y = startY + deltaY * 0.88;
+    const cp2X = endX - deltaX * 0.12 - wobble * 0.5;
+    const cp2Y = startY + deltaY * 0.90;
 
     return `M ${startX.toFixed(1)} ${startY.toFixed(1)} C ${cp1X.toFixed(1)} ${cp1Y.toFixed(1)}, ${cp2X.toFixed(1)} ${cp2Y.toFixed(1)}, ${endX.toFixed(1)} ${endY.toFixed(1)}`;
 }
@@ -179,11 +179,11 @@ function createOrganicBranchPath(
  */
 function getBranchThickness(generation: number): number {
     switch (generation) {
-        case 1: return 32; // Grand primary bough
-        case 2: return 22; // Secondary boughs
-        case 3: return 14; // Tertiary branches
-        case 4: return 9;  // Intermediate twigs
-        default: return 5; // Delicate outer twigs
+        case 1: return 34; // Grand primary bough
+        case 2: return 24; // Secondary boughs
+        case 3: return 16; // Tertiary branches
+        case 4: return 10; // Intermediate twigs
+        default: return 6; // Delicate outer twigs
     }
 }
 
@@ -205,10 +205,38 @@ export function calculateBotanicalLayout(
     }
     findMaxGen(internalRoot);
 
-    const totalTreeHeight = maxGen * LEVEL_HEIGHT + 280; // generous padding for trunk and crown
+    const totalTreeHeight = maxGen * LEVEL_HEIGHT + 260; // generous space for trunk and canopy
 
-    // 2. Position all nodes
+    // 2. Position all nodes horizontally and vertically
     assignCoordinates(internalRoot, 100, totalTreeHeight);
+
+    // 3. Find horizontal span to compute natural dome arching (छतरीनुमा फैलाव)
+    let minLeafX = Infinity;
+    let maxLeafX = -Infinity;
+    function findLeafSpan(n: LayoutNodeInternal) {
+        if (n.x < minLeafX) minLeafX = n.x;
+        if (n.x > maxLeafX) maxLeafX = n.x;
+        n.children.forEach(findLeafSpan);
+    }
+    findLeafSpan(internalRoot);
+
+    const treeSpanWidth = Math.max(maxLeafX - minLeafX, 800);
+    const treeCenterX = (minLeafX + maxLeafX) / 2;
+
+    // Apply natural radial dome canopy arch: center branches rise higher, outer branches drape gracefully
+    function applyCanopyDome(n: LayoutNodeInternal) {
+        if (n.generation > 2) {
+            const distFromCenter = Math.abs(n.x - treeCenterX);
+            const normalizedDist = Math.min(1, distFromCenter / (treeSpanWidth * 0.55));
+            // Cosine dome curve: up to 130px lift at center crown, tapering outward
+            const domeLift = Math.cos(normalizedDist * (Math.PI / 2)) * 130;
+            // Subtle organic stagger so siblings don't sit on a robotic ruler
+            const stagger = Math.sin(n.x * 0.08) * 16;
+            n.y = n.y - domeLift + stagger;
+        }
+        n.children.forEach(applyCanopyDome);
+    }
+    applyCanopyDome(internalRoot);
 
     const nodes: BotanicalNode[] = [];
     const branches: BotanicalBranch[] = [];

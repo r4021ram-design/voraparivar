@@ -56,31 +56,41 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isExporting, setIsExporting] = useState(false);
 
-    // Initial center on tree trunk & canopy with proper framing
+    // Initial center on tree trunk & canopy with flawless vertical framing
     const centerTree = useCallback(() => {
         if (!containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
         
-        // Target initial scale based on bounding box
-        const availableWidth = rect.width * 0.94;
-        const availableHeight = rect.height * 0.84;
+        const topNavPadding = 110;
+        const bottomNavPadding = 75;
+        const horizontalPadding = 60;
+
+        const availableWidth = rect.width - horizontalPadding;
+        const availableHeight = rect.height - topNavPadding - bottomNavPadding;
+
         const scaleX = availableWidth / layout.bounds.width;
         const scaleY = availableHeight / layout.bounds.height;
-        const initScale = Math.min(Math.max(Math.min(scaleX, scaleY), 0.18), 1.05);
+        const initScale = Math.min(scaleX, scaleY, 0.95);
 
         const treeCenterX = (layout.bounds.minX + layout.bounds.maxX) / 2;
-        // Balance vertical centering with slight upward nudge for bottom controls
-        const treeCenterY = (layout.bounds.minY + layout.bounds.maxY) / 2;
+        
+        // Exact vertical positioning ensuring top canopy and bottom roots are both 100% visible
+        const scaledTreeHeight = layout.bounds.height * initScale;
+        const verticalExcess = Math.max(0, availableHeight - scaledTreeHeight);
+        const panY = topNavPadding + (verticalExcess / 2) - layout.bounds.minY * initScale;
 
         setScale(initScale);
         setPan({
             x: rect.width / 2 - treeCenterX * initScale,
-            y: rect.height / 2 - treeCenterY * initScale + 10,
+            y: panY,
         });
     }, [layout]);
 
     useEffect(() => {
         centerTree();
+        window.addEventListener('resize', centerTree);
+        return () => window.removeEventListener('resize', centerTree);
     }, [centerTree]);
 
     // 3. Mouse Pan Handlers
