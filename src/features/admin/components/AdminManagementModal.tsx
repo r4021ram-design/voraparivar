@@ -144,7 +144,11 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
             setNewUserPassword('');
             loadData();
         } else {
-            setStatusMessage({ type: 'error', text: res.error || 'Failed to create user' });
+            let errText = res.error || 'Failed to create user';
+            if (errText.includes('Access Denied')) {
+                errText = '⚠️ Supabase में Admin खाता एक्टिव नहीं है। कृपया Supabase Dashboard के SQL Editor में "supabase_schema_v7_multifamily.sql" एक बार Run करें।';
+            }
+            setStatusMessage({ type: 'error', text: errText });
         }
     };
 

@@ -65,9 +65,12 @@ DECLARE
   normalized_email text;
 BEGIN
   -- Verify caller is authenticated and has ADMIN role
+  -- (If database has no admin profile yet, bootstrap is allowed)
   SELECT role INTO caller_role FROM public.profiles WHERE id = auth.uid();
   IF caller_role IS NULL OR caller_role != 'ADMIN' THEN
-    RAISE EXCEPTION 'Access Denied: Only Admins can create new family users';
+    IF EXISTS (SELECT 1 FROM public.profiles WHERE role = 'ADMIN') THEN
+      RAISE EXCEPTION 'Access Denied: Only Admins can create new family users';
+    END IF;
   END IF;
 
   normalized_email := lower(trim(new_email));
@@ -77,7 +80,7 @@ BEGIN
 
   -- Check if user already exists
   IF EXISTS (SELECT 1 FROM auth.users WHERE email = normalized_email) THEN
-    RAISE EXCEPTION 'User with email % already exists', normalized_email;
+    RAISE EXCEPTION 'User with username/email "%" already exists', normalized_email;
   END IF;
 
   new_uid := gen_random_uuid();
@@ -170,7 +173,59 @@ BEGIN
 END;
 $$;
 
--- 9. Grant EXECUTE permissions to authenticated users
-GRANT EXECUTE ON FUNCTION public.create_family_user(TEXT, TEXT, TEXT, TEXT) TO authenticated;
+-- 9. Grant EXECUTE permissions
+GRANT EXECUTE ON FUNCTION public.create_family_user(TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reset_family_user_password(uuid, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_family_user(uuid) TO authenticated;
+
+-- 10. Seed Super Admin (admin / dnjn123) into auth.users and public.profiles
+DO $$
+DECLARE
+  admin_uid uuid := gen_random_uuid();
+BEGIN
+  -- Check if admin@family.local exists in auth.users
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@family.local') THEN
+    INSERT INTO auth.users (
+      instance_id,
+      id,
+      aud,
+      role,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      created_at,
+      updated_at
+    ) VALUES (
+      '00000000-0000-0000-0000-000000000000',
+      admin_uid,
+      'authenticated',
+      'authenticated',
+      'admin@family.local',
+      crypt('dnjn123', gen_salt('bf')),
+      now(),
+      '{"provider":"email","providers":["email"]}',
+      '{"role":"ADMIN"}',
+      now(),
+      now()
+    );
+
+    INSERT INTO public.profiles (id, role, email, family_id, created_at)
+    VALUES (admin_uid, 'ADMIN', 'admin@family.local', NULL, now())
+    ON CONFLICT (id) DO UPDATE SET role = 'ADMIN', email = 'admin@family.local';
+  ELSE
+    SELECT id INTO admin_uid FROM auth.users WHERE email = 'admin@family.local';
+    
+    UPDATE auth.users
+    SET encrypted_password = crypt('dnjn123', gen_salt('bf')),
+        email_confirmed_at = COALESCE(email_confirmed_at, now()),
+        updated_at = now()
+    WHERE id = admin_uid;
+
+    INSERT INTO public.profiles (id, role, email, family_id, created_at)
+    VALUES (admin_uid, 'ADMIN', 'admin@family.local', NULL, now())
+    ON CONFLICT (id) DO UPDATE SET role = 'ADMIN', email = 'admin@family.local';
+  END IF;
+END $$;
+

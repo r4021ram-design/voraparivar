@@ -149,6 +149,24 @@ export async function fetchFamilyUsers(): Promise<FamilyUser[]> {
     }
 }
 
+function extractErrorMessage(err: unknown, fallback: string): string {
+    if (typeof err === 'object' && err !== null) {
+        if ('message' in err && typeof (err as { message: unknown }).message === 'string') {
+            return (err as { message: string }).message;
+        }
+        if ('error_description' in err && typeof (err as { error_description: unknown }).error_description === 'string') {
+            return (err as { error_description: string }).error_description;
+        }
+        if ('details' in err && typeof (err as { details: unknown }).details === 'string') {
+            return (err as { details: string }).details;
+        }
+    }
+    if (err instanceof Error) {
+        return err.message;
+    }
+    return fallback;
+}
+
 /**
  * Create a new user without logging out the current Admin session using RPC.
  */
@@ -171,8 +189,7 @@ export async function createFamilyUser(data: CreateUserData): Promise<{ success:
         return { success: true };
     } catch (err: unknown) {
         console.error('Error creating family user:', err);
-        const message = err instanceof Error ? err.message : 'Failed to create user';
-        return { success: false, error: message };
+        return { success: false, error: extractErrorMessage(err, 'Failed to create user') };
     }
 }
 
@@ -190,8 +207,7 @@ export async function resetFamilyUserPassword(userId: string, newPassword: strin
         return { success: true };
     } catch (err: unknown) {
         console.error('Error resetting password:', err);
-        const message = err instanceof Error ? err.message : 'Failed to reset password';
-        return { success: false, error: message };
+        return { success: false, error: extractErrorMessage(err, 'Failed to reset password') };
     }
 }
 
@@ -208,7 +224,6 @@ export async function deleteFamilyUser(userId: string): Promise<{ success: boole
         return { success: true };
     } catch (err: unknown) {
         console.error('Error deleting user:', err);
-        const message = err instanceof Error ? err.message : 'Failed to delete user';
-        return { success: false, error: message };
+        return { success: false, error: extractErrorMessage(err, 'Failed to delete user') };
     }
 }
