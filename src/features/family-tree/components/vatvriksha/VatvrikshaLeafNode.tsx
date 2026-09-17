@@ -37,8 +37,12 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
     const displayRelation = person.translations?.[language]?.relation || getTranslatedContent(person.relation, language) || person.relation;
     const displaySpouse = person.spouse ? (person.translations?.[language]?.spouse || getTranslatedContent(person.spouse, language) || person.spouse) : null;
 
-    const initials = (displayName || '?').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
-    const spouseInitials = (displaySpouse || '?').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+    // Clean numeric prefixes (e.g., "07. ", "08. ", "1-") so initials reflect actual member names
+    const cleanDisplayName = displayName.replace(/^[\d\s.\-()]+/, '').trim() || displayName;
+    const cleanSpouseName = (displaySpouse || '').replace(/^[\d\s.\-()]+/, '').trim() || displaySpouse;
+
+    const initials = (cleanDisplayName || '?').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+    const spouseInitials = (cleanSpouseName || '?').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
 
     // ────────────────────────────────────────────
     // Case 1: Root Ancestor Grand Trunk Seal
