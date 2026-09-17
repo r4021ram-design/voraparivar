@@ -183,22 +183,17 @@ function createOrganicBranchPath(
 ): string {
     const deltaX = endX - startX;
     const deltaY = endY - startY; // negative since growing upwards
-    const absDeltaX = Math.abs(deltaX);
 
     // Organic wobble modulated by branch generation for natural bark feel
-    const wobbleScale = Math.max(2, 7 - generation * 1.0);
+    const wobbleScale = Math.max(1.5, 5 - generation * 0.8);
     const wobble = Math.sin(startX * 0.04 + endX * 0.04) * wobbleScale;
 
-    // Upward sweeping bough arch so wide horizontal limbs curve majestically like real ancient banyan boughs
-    const archHeight = Math.min(95, Math.pow(absDeltaX, 0.65) * 2.8);
+    // Soaring monotonic bough curve: rises vertically from parent, then gracefully sweeps toward child
+    const cp1X = startX + deltaX * 0.16 + wobble;
+    const cp1Y = startY + deltaY * 0.62;
 
-    // Control point 1: rises vertically from parent trunk/bough and arches upward
-    const cp1X = startX + deltaX * 0.18 + wobble;
-    const cp1Y = startY + deltaY * 0.42 - archHeight;
-
-    // Control point 2: sweeps over, cradles outward, and eases into child stem
-    const cp2X = endX - deltaX * 0.22 - wobble * 0.6;
-    const cp2Y = startY + deltaY * 0.85 - archHeight * 0.35;
+    const cp2X = endX - deltaX * 0.20 - wobble * 0.5;
+    const cp2Y = endY - deltaY * 0.18;
 
     return `M ${startX.toFixed(1)} ${startY.toFixed(1)} C ${cp1X.toFixed(1)} ${cp1Y.toFixed(1)}, ${cp2X.toFixed(1)} ${cp2Y.toFixed(1)}, ${endX.toFixed(1)} ${endY.toFixed(1)}`;
 }
@@ -208,12 +203,12 @@ function createOrganicBranchPath(
  */
 function getBranchThickness(generation: number): number {
     switch (generation) {
-        case 1: return 28; // Grand primary bough
-        case 2: return 22; // Secondary boughs
-        case 3: return 16; // Tertiary boughs
-        case 4: return 11; // Intermediate limbs
-        case 5: return 8;  // Outer branches
-        default: return 5; // Delicate leaf twigs
+        case 1: return 24; // Grand primary trunk/bough
+        case 2: return 18; // Secondary boughs
+        case 3: return 14; // Tertiary boughs
+        case 4: return 10; // Intermediate limbs
+        case 5: return 7;  // Outer branches
+        default: return 4.5; // Delicate leaf twigs
     }
 }
 
@@ -247,15 +242,15 @@ export function calculateBotanicalLayout(
     const treeSpanWidth = Math.max(maxLeafX - minLeafX, 600);
     const treeCenterX = (minLeafX + maxLeafX) / 2;
 
-    // Apply natural radial dome canopy arch: center branches rise higher, outer branches drape gracefully
+    // Apply natural radial dome canopy arch ONLY to outer leaves (generations 6+) so internal limbs never flatten
     function applyCanopyDome(n: LayoutNodeInternal) {
-        if (n.children.length === 0 || n.generation > 2) {
+        if (n.children.length === 0 || n.generation >= 6) {
             const distFromCenter = Math.abs(n.x - treeCenterX);
             const normalizedDist = Math.min(1, distFromCenter / (treeSpanWidth * 0.52));
-            // Cosine dome curve: up to 90px lift at center crown, tapering outward
-            const domeLift = Math.cos(normalizedDist * (Math.PI / 2)) * 90;
+            // Cosine dome curve: up to 65px lift at center crown, tapering outward
+            const domeLift = Math.cos(normalizedDist * (Math.PI / 2)) * 65;
             // Subtle organic stagger so siblings don't sit on a robotic ruler
-            const stagger = Math.sin(n.x * 0.08) * 14;
+            const stagger = Math.sin(n.x * 0.08) * 12;
             n.y = n.y - domeLift + stagger;
         }
         n.children.forEach(applyCanopyDome);
@@ -332,12 +327,10 @@ export function calculateBotanicalLayout(
                 isHighlighted,
             });
 
-            // Detect major lineage branch founders (e.g. Gen 4 or first major branching out of linear trunk)
+            // Crown ribbon badge directly above branch founder nodes (e.g. Generation 4 branch heads)
             const isMajorBranchHead = (parent.generation <= 3 && parent.children.length > 1) || (parent.generation === 3);
-            if (isMajorBranchHead && Math.abs(node.x - parent.x) > 60) {
+            if (isMajorBranchHead && Math.abs(node.x - parent.x) > 50) {
                 branchCounter++;
-                const midX = (parent.x * 0.4 + node.x * 0.6);
-                const midY = (parent.y * 0.45 + node.y * 0.55) - 22; // Slightly above the bough curve
                 const cleanName = node.person.name.replace(/^[\d\s.\-()]+/, '').trim().split(/\s+/)[0];
 
                 branchRibbons.push({
@@ -345,40 +338,27 @@ export function calculateBotanicalLayout(
                     personId: node.person.id,
                     name: cleanName,
                     branchIndex: branchCounter,
-                    x: midX,
-                    y: midY,
-                    angle: (node.x > parent.x ? 6 : -6),
+                    x: node.x,
+                    y: node.y - 48, // Sits majestically as a crown banner above the branch head node!
+                    angle: 0,
                 });
             }
 
-            // For major branches, generate cascading hanging aerial prop roots (वटवृक्ष की जटाएं)
-            if (parent.generation <= 3 && Math.abs(node.x - parent.x) > 90) {
-                const midX = (parent.x * 0.45 + node.x * 0.55) + (Math.sin(node.x * 0.1) * 14);
-                const midY = (parent.y + node.y) / 2;
-                const rootDropLength = Math.min(130, Math.max(50, (BASE_TREE_Y + 20) - midY));
+            // Cascading aerial roots anchoring wide branches to the earth mound
+            if (parent.generation <= 3 && Math.abs(node.x - parent.x) > 120) {
+                const rootStartX = parent.x * 0.45 + node.x * 0.55;
+                const rootStartY = parent.y * 0.45 + node.y * 0.55;
+                const earthY = BASE_TREE_Y + 35; // Earth mound level
 
-                // Natural undulating wavy drop path
-                const rootPath = `M ${midX.toFixed(1)} ${midY.toFixed(1)} Q ${(midX + 7).toFixed(1)} ${(midY + rootDropLength * 0.4).toFixed(1)}, ${(midX - 4).toFixed(1)} ${(midY + rootDropLength * 0.75).toFixed(1)} T ${(midX + 2).toFixed(1)} ${(midY + rootDropLength).toFixed(1)}`;
+                // Graceful wavy aerial prop root draping from bough to the soil
+                const rootPath = `M ${rootStartX.toFixed(1)} ${rootStartY.toFixed(1)} Q ${(rootStartX + 12).toFixed(1)} ${(rootStartY + (earthY - rootStartY) * 0.35).toFixed(1)}, ${(rootStartX - 8).toFixed(1)} ${(rootStartY + (earthY - rootStartY) * 0.70).toFixed(1)} T ${rootStartX.toFixed(1)} ${earthY.toFixed(1)}`;
 
                 aerialRoots.push({
                     id: `aerial-root-${parent.person.id}-${node.person.id}`,
                     pathData: rootPath,
-                    thickness: Math.max(1.6, 3.4 - parent.generation * 0.6),
-                    opacity: 0.75,
+                    thickness: 2.0,
+                    opacity: 0.65,
                 });
-
-                // Secondary delicate companion fiber root for rich realism
-                if (Math.abs(node.x - parent.x) > 180) {
-                    const secX = midX + (node.x > parent.x ? -14 : 14);
-                    const secLength = rootDropLength * 0.82;
-                    const secRootPath = `M ${secX.toFixed(1)} ${(midY + 8).toFixed(1)} Q ${(secX - 5).toFixed(1)} ${(midY + secLength * 0.5).toFixed(1)}, ${(secX + 3).toFixed(1)} ${(midY + secLength).toFixed(1)}`;
-                    aerialRoots.push({
-                        id: `aerial-root-sec-${parent.person.id}-${node.person.id}`,
-                        pathData: secRootPath,
-                        thickness: 1.2,
-                        opacity: 0.55,
-                    });
-                }
             }
         }
 

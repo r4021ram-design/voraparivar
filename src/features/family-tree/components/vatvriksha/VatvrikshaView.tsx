@@ -509,24 +509,24 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
                         })}
                     </g>
 
-                    {/* 6. Major Lineage Branch Badges / Ribbons (शाखा पट्टिका) */}
+                    {/* 6. Major Lineage Branch Badges / Ribbons (शाखा મુકુટ પટ્ટિકા) */}
                     <g className="vatvriksha-ribbons-layer" pointerEvents="none">
                         {layout.branchRibbons.map(ribbon => (
                             <g
                                 key={ribbon.id}
-                                transform={`translate(${ribbon.x}, ${ribbon.y}) rotate(${ribbon.angle})`}
+                                transform={`translate(${ribbon.x}, ${ribbon.y})`}
                                 className="transition-transform duration-300"
                             >
                                 <rect
-                                    x={-52}
+                                    x={-60}
                                     y={-12}
-                                    width={104}
+                                    width={120}
                                     height={24}
                                     rx={12}
-                                    fill={isRajashahi ? '#7c2d12' : '#064e3b'}
+                                    fill={isRajashahi ? '#800000' : '#064e3b'}
                                     stroke="#ffd700"
                                     strokeWidth={1.5}
-                                    filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                                    filter="drop-shadow(0 3px 6px rgba(0,0,0,0.35))"
                                 />
                                 <text
                                     x={0}
@@ -534,11 +534,11 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
                                     textAnchor="middle"
                                     dominantBaseline="central"
                                     fill="#fef08a"
-                                    fontSize={10}
+                                    fontSize={10.5}
                                     fontWeight="900"
-                                    letterSpacing="0.04em"
+                                    letterSpacing="0.03em"
                                 >
-                                    🌿 {ribbon.name} શાખા
+                                    👑 {ribbon.name} શાખા
                                 </text>
                             </g>
                         ))}
