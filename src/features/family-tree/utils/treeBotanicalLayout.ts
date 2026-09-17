@@ -54,6 +54,17 @@ export interface AerialRoot {
     id: string;
     pathData: string;
     thickness: number;
+    opacity: number;
+}
+
+export interface BranchRibbon {
+    id: string;
+    personId: string;
+    name: string;
+    branchIndex: number;
+    x: number;
+    y: number;
+    angle: number;
 }
 
 export interface BotanicalTreeLayout {
@@ -61,6 +72,7 @@ export interface BotanicalTreeLayout {
     branches: BotanicalBranch[];
     canopyClouds: CanopyCloud[];
     aerialRoots: AerialRoot[];
+    branchRibbons: BranchRibbon[];
     bounds: {
         minX: number;
         maxX: number;
@@ -171,21 +183,22 @@ function createOrganicBranchPath(
 ): string {
     const deltaX = endX - startX;
     const deltaY = endY - startY; // negative since growing upwards
+    const absDeltaX = Math.abs(deltaX);
 
     // Organic wobble modulated by branch generation for natural bark feel
-    const wobbleScale = Math.max(3, 8 - generation * 1.1);
-    const wobble = Math.sin(startX * 0.03 + endX * 0.03) * wobbleScale;
+    const wobbleScale = Math.max(2, 7 - generation * 1.0);
+    const wobble = Math.sin(startX * 0.04 + endX * 0.04) * wobbleScale;
 
-    // Upward sweeping bough arch so wide horizontal branches curve naturally like real tree limbs
-    const archHeight = Math.min(80, Math.abs(deltaX) * 0.12);
+    // Upward sweeping bough arch so wide horizontal limbs curve majestically like real ancient banyan boughs
+    const archHeight = Math.min(95, Math.pow(absDeltaX, 0.65) * 2.8);
 
     // Control point 1: rises vertically from parent trunk/bough and arches upward
-    const cp1X = startX + deltaX * 0.12 + wobble;
-    const cp1Y = startY + deltaY * 0.55 - archHeight;
+    const cp1X = startX + deltaX * 0.18 + wobble;
+    const cp1Y = startY + deltaY * 0.42 - archHeight;
 
-    // Control point 2: sweeps over and descends/eases into child stem
-    const cp2X = endX - deltaX * 0.15 - wobble * 0.5;
-    const cp2Y = startY + deltaY * 0.88 - archHeight * 0.25;
+    // Control point 2: sweeps over, cradles outward, and eases into child stem
+    const cp2X = endX - deltaX * 0.22 - wobble * 0.6;
+    const cp2Y = startY + deltaY * 0.85 - archHeight * 0.35;
 
     return `M ${startX.toFixed(1)} ${startY.toFixed(1)} C ${cp1X.toFixed(1)} ${cp1Y.toFixed(1)}, ${cp2X.toFixed(1)} ${cp2Y.toFixed(1)}, ${endX.toFixed(1)} ${endY.toFixed(1)}`;
 }
@@ -195,11 +208,12 @@ function createOrganicBranchPath(
  */
 function getBranchThickness(generation: number): number {
     switch (generation) {
-        case 1: return 26; // Grand primary bough
-        case 2: return 20; // Secondary boughs
-        case 3: return 14; // Tertiary branches
-        case 4: return 9;  // Intermediate twigs
-        default: return 5; // Delicate outer twigs
+        case 1: return 28; // Grand primary bough
+        case 2: return 22; // Secondary boughs
+        case 3: return 16; // Tertiary boughs
+        case 4: return 11; // Intermediate limbs
+        case 5: return 8;  // Outer branches
+        default: return 5; // Delicate leaf twigs
     }
 }
 
@@ -252,6 +266,9 @@ export function calculateBotanicalLayout(
     const branches: BotanicalBranch[] = [];
     const canopyClouds: CanopyCloud[] = [];
     const aerialRoots: AerialRoot[] = [];
+    const branchRibbons: BranchRibbon[] = [];
+
+    let branchCounter = 0;
 
     // 3. Flatten into botanical domain models
     function traverse(node: LayoutNodeInternal, parent?: LayoutNodeInternal) {
@@ -285,19 +302,19 @@ export function calculateBotanicalLayout(
             childrenCount: node.person.children ? node.person.children.length : 0,
         });
 
-        // Generate lush background foliage canopy clouds around nodes
-        const cloudVariants: ('deep' | 'emerald' | 'lime' | 'gold')[] = ['deep', 'emerald', 'lime', 'emerald'];
+        // Generate lush background foliage canopy clouds around nodes with varied depth
+        const cloudVariants: ('deep' | 'emerald' | 'lime' | 'gold')[] = ['deep', 'emerald', 'lime', 'emerald', 'deep'];
         const variant = cloudVariants[node.generation % cloudVariants.length];
-        const baseRadius = node.generation > 2 ? 80 : 110;
+        const baseRadius = node.generation > 2 ? 85 : 120;
 
         canopyClouds.push({
             id: `canopy-${node.person.id}`,
-            cx: node.x + (Math.sin(node.x * 0.1) * 15),
-            cy: node.y - 10 + (Math.cos(node.y * 0.1) * 10),
-            rx: baseRadius + (Math.sin(node.x * 0.05) * 20),
-            ry: (baseRadius * 0.75) + (Math.cos(node.y * 0.05) * 15),
+            cx: node.x + (Math.sin(node.x * 0.1) * 16),
+            cy: node.y - 12 + (Math.cos(node.y * 0.1) * 12),
+            rx: baseRadius + (Math.sin(node.x * 0.05) * 24),
+            ry: (baseRadius * 0.72) + (Math.cos(node.y * 0.05) * 18),
             colorVariant: variant,
-            opacity: node.generation === 1 ? 0.35 : 0.25,
+            opacity: node.generation <= 2 ? 0.38 : 0.28,
         });
 
         if (parent) {
@@ -315,20 +332,53 @@ export function calculateBotanicalLayout(
                 isHighlighted,
             });
 
-            // For major branches (Gen 1 to Gen 3 with notable horizontal spread), generate hanging aerial roots
-            if (parent.generation <= 3 && Math.abs(node.x - parent.x) > 100) {
-                const midX = (parent.x + node.x) / 2 + (Math.sin(node.x) * 12);
-                const midY = (parent.y + node.y) / 2;
-                const rootDropLength = Math.min(100, Math.max(40, BASE_TREE_Y - midY));
+            // Detect major lineage branch founders (e.g. Gen 4 or first major branching out of linear trunk)
+            const isMajorBranchHead = (parent.generation <= 3 && parent.children.length > 1) || (parent.generation === 3);
+            if (isMajorBranchHead && Math.abs(node.x - parent.x) > 60) {
+                branchCounter++;
+                const midX = (parent.x * 0.4 + node.x * 0.6);
+                const midY = (parent.y * 0.45 + node.y * 0.55) - 22; // Slightly above the bough curve
+                const cleanName = node.person.name.replace(/^[\d\s.\-()]+/, '').trim().split(/\s+/)[0];
 
-                // Hanging fibrous banyan aerial root with gentle organic waviness
-                const rootPath = `M ${midX.toFixed(1)} ${midY.toFixed(1)} Q ${(midX + 5).toFixed(1)} ${(midY + rootDropLength * 0.5).toFixed(1)} ${(midX - 2).toFixed(1)} ${(midY + rootDropLength).toFixed(1)}`;
+                branchRibbons.push({
+                    id: `ribbon-${node.person.id}`,
+                    personId: node.person.id,
+                    name: cleanName,
+                    branchIndex: branchCounter,
+                    x: midX,
+                    y: midY,
+                    angle: (node.x > parent.x ? 6 : -6),
+                });
+            }
+
+            // For major branches, generate cascading hanging aerial prop roots (वटवृक्ष की जटाएं)
+            if (parent.generation <= 3 && Math.abs(node.x - parent.x) > 90) {
+                const midX = (parent.x * 0.45 + node.x * 0.55) + (Math.sin(node.x * 0.1) * 14);
+                const midY = (parent.y + node.y) / 2;
+                const rootDropLength = Math.min(130, Math.max(50, (BASE_TREE_Y + 20) - midY));
+
+                // Natural undulating wavy drop path
+                const rootPath = `M ${midX.toFixed(1)} ${midY.toFixed(1)} Q ${(midX + 7).toFixed(1)} ${(midY + rootDropLength * 0.4).toFixed(1)}, ${(midX - 4).toFixed(1)} ${(midY + rootDropLength * 0.75).toFixed(1)} T ${(midX + 2).toFixed(1)} ${(midY + rootDropLength).toFixed(1)}`;
 
                 aerialRoots.push({
                     id: `aerial-root-${parent.person.id}-${node.person.id}`,
                     pathData: rootPath,
-                    thickness: Math.max(1.5, 3.2 - parent.generation * 0.7),
+                    thickness: Math.max(1.6, 3.4 - parent.generation * 0.6),
+                    opacity: 0.75,
                 });
+
+                // Secondary delicate companion fiber root for rich realism
+                if (Math.abs(node.x - parent.x) > 180) {
+                    const secX = midX + (node.x > parent.x ? -14 : 14);
+                    const secLength = rootDropLength * 0.82;
+                    const secRootPath = `M ${secX.toFixed(1)} ${(midY + 8).toFixed(1)} Q ${(secX - 5).toFixed(1)} ${(midY + secLength * 0.5).toFixed(1)}, ${(secX + 3).toFixed(1)} ${(midY + secLength).toFixed(1)}`;
+                    aerialRoots.push({
+                        id: `aerial-root-sec-${parent.person.id}-${node.person.id}`,
+                        pathData: secRootPath,
+                        thickness: 1.2,
+                        opacity: 0.55,
+                    });
+                }
             }
         }
 
@@ -364,6 +414,7 @@ export function calculateBotanicalLayout(
         branches,
         canopyClouds,
         aerialRoots,
+        branchRibbons,
         bounds: {
             minX,
             maxX,

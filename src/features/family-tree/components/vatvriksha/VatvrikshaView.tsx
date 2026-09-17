@@ -43,12 +43,48 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
     const isRajashahi = theme === 'rajashahi';
     const canEdit = userRole === 'ADMIN' || userRole === 'STANDARD';
 
-    // 1. Calculate botanical tree geometry
+    // 1. Interactive Hover Lineage Tracker: Precompute child -> parent lookup map
+    const parentMap = useMemo(() => {
+        const map = new Map<string, string>();
+        function mapParents(person: Person) {
+            if (person.children) {
+                for (const child of person.children) {
+                    map.set(child.id, person.id);
+                    mapParents(child);
+                }
+            }
+        }
+        mapParents(treeData);
+        return map;
+    }, [treeData]);
+
+    const [hoveredAncestors, setHoveredAncestors] = useState<string[]>([]);
+
+    const handleHoverEnter = useCallback((personId: string) => {
+        const path: string[] = [personId];
+        let curr = personId;
+        while (parentMap.has(curr)) {
+            const parentId = parentMap.get(curr)!;
+            path.push(parentId);
+            curr = parentId;
+        }
+        setHoveredAncestors(path);
+    }, [parentMap]);
+
+    const handleHoverLeave = useCallback(() => {
+        setHoveredAncestors([]);
+    }, []);
+
+    const activeGlowingSet = useMemo(() => {
+        return new Set([...highlightedPath, ...hoveredAncestors]);
+    }, [highlightedPath, hoveredAncestors]);
+
+    // 2. Calculate botanical tree geometry
     const layout = useMemo(() => {
         return calculateBotanicalLayout(treeData, highlightedPath);
     }, [treeData, highlightedPath]);
 
-    // 2. Pan and Zoom Transform State
+    // 3. Pan and Zoom Transform State
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(0.85);
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -94,7 +130,7 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
         return () => window.removeEventListener('resize', centerTree);
     }, [centerTree]);
 
-    // 3. Mouse Pan Handlers
+    // 4. Mouse Pan Handlers
     const handleMouseDown = (e: React.MouseEvent) => {
         if (e.button !== 0) return; // Only left click
         setIsDragging(true);
@@ -113,7 +149,7 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
         setIsDragging(false);
     };
 
-    // 4. Wheel Zoom
+    // 5. Wheel Zoom
     const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
         const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
@@ -133,13 +169,12 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
         }
     };
 
-    // 5. High-Definition Wall Poster Export
+    // 6. High-Definition Wall Poster Export
     const handleDownloadPoster = async () => {
         if (!containerRef.current) return;
         setIsExporting(true);
 
         try {
-            // Target the SVG content wrapper
             const svgElement = containerRef.current.querySelector('.vatvriksha-svg-canvas') as HTMLElement;
             if (!svgElement) throw new Error('SVG Canvas element not found');
 
@@ -212,6 +247,18 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
                 style={{ overflow: 'visible' }}
             >
                 <defs>
+                    <style>
+                        {`
+                            @keyframes flowingVein {
+                                0% { stroke-dashoffset: 48; }
+                                100% { stroke-dashoffset: 0; }
+                            }
+                            .animate-flowing-vein {
+                                animation: flowingVein 1.2s linear infinite;
+                            }
+                        `}
+                    </style>
+
                     {/* Natural Wooden Bark Gradient */}
                     <linearGradient id="natural-wood-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#381a07" />
@@ -230,9 +277,22 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
 
                     {/* Aerial Hanging Root Gradient */}
                     <linearGradient id="aerial-root-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#78350f" stopOpacity="0.9" />
-                        <stop offset="70%" stopColor="#92400e" stopOpacity="0.6" />
-                        <stop offset="100%" stopColor="#b45309" stopOpacity="0.2" />
+                        <stop offset="0%" stopColor="#78350f" stopOpacity="0.95" />
+                        <stop offset="70%" stopColor="#92400e" stopOpacity="0.65" />
+                        <stop offset="100%" stopColor="#b45309" stopOpacity="0.15" />
+                    </linearGradient>
+
+                    {/* Sacred Stone Platform Gradient (ओटला / चबूतरा) */}
+                    <linearGradient id="sacred-chabutra-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#e2e8f0" />
+                        <stop offset="50%" stopColor="#cbd5e1" />
+                        <stop offset="100%" stopColor="#94a3b8" />
+                    </linearGradient>
+
+                    <linearGradient id="royal-chabutra-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#fef3c7" />
+                        <stop offset="50%" stopColor="#fde68a" />
+                        <stop offset="100%" stopColor="#d97706" />
                     </linearGradient>
 
                     {/* Foliage Canopy Cloud Gradients */}
@@ -313,8 +373,8 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
                     </linearGradient>
 
                     {/* Kinship Glowing Filter */}
-                    <filter id="golden-branch-glow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="6" result="blur" />
+                    <filter id="golden-branch-glow" x="-25%" y="-25%" width="150%" height="150%">
+                        <feGaussianBlur stdDeviation="8" result="blur" />
                         <feComposite in="SourceGraphic" in2="blur" operator="over" />
                     </filter>
                 </defs>
@@ -326,140 +386,184 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
                 >
                     {/* 1. Lush Green Canopy Foliage Clouds (Background Body of the Tree) */}
                     <g className="vatvriksha-canopy-layer" pointerEvents="none">
-                    {layout.canopyClouds.map(cloud => {
-                        const gradientId = cloud.colorVariant === 'deep'
-                            ? 'url(#canopy-cloud-deep)'
-                            : cloud.colorVariant === 'lime'
-                            ? 'url(#canopy-cloud-lime)'
-                            : cloud.colorVariant === 'gold'
-                            ? 'url(#canopy-cloud-gold)'
-                            : 'url(#canopy-cloud-emerald)';
+                        {layout.canopyClouds.map(cloud => {
+                            const gradientId = cloud.colorVariant === 'deep'
+                                ? 'url(#canopy-cloud-deep)'
+                                : cloud.colorVariant === 'lime'
+                                ? 'url(#canopy-cloud-lime)'
+                                : cloud.colorVariant === 'gold'
+                                ? 'url(#canopy-cloud-gold)'
+                                : 'url(#canopy-cloud-emerald)';
 
-                        return (
-                            <ellipse
-                                key={cloud.id}
-                                cx={cloud.cx}
-                                cy={cloud.cy}
-                                rx={cloud.rx}
-                                ry={cloud.ry}
-                                fill={gradientId}
-                                opacity={cloud.opacity}
+                            return (
+                                <ellipse
+                                    key={cloud.id}
+                                    cx={cloud.cx}
+                                    cy={cloud.cy}
+                                    rx={cloud.rx}
+                                    ry={cloud.ry}
+                                    fill={gradientId}
+                                    opacity={cloud.opacity}
+                                />
+                            );
+                        })}
+                    </g>
+
+                    {/* 2. Hanging Banyan Aerial Prop Roots (वटवृक्ष की जटाएं) */}
+                    <g className="vatvriksha-aerial-roots" pointerEvents="none">
+                        {layout.aerialRoots.map(root => (
+                            <path
+                                key={root.id}
+                                d={root.pathData}
+                                fill="none"
+                                stroke="url(#aerial-root-gradient)"
+                                strokeWidth={root.thickness}
+                                strokeLinecap="round"
+                                opacity={root.opacity}
                             />
-                        );
-                    })}
-                </g>
+                        ))}
+                    </g>
 
-                {/* 2. Hanging Banyan Aerial Prop Roots (वटवृक्ष की जटाएं) */}
-                <g className="vatvriksha-aerial-roots" pointerEvents="none">
-                    {layout.aerialRoots.map(root => (
+                    {/* 3. Sacred Earth Mound & Sacred Stone Chabutra (चबूतरा / ओटला) */}
+                    <g className="vatvriksha-earth-roots" opacity={0.95}>
+                        {/* Lower Sacred Stone Slab (Tier 1) */}
+                        <ellipse
+                            cx={layout.trunk.baseX}
+                            cy={layout.trunk.baseY + 52}
+                            rx={250}
+                            ry={50}
+                            fill={isRajashahi ? 'url(#royal-chabutra-gradient)' : 'url(#sacred-chabutra-gradient)'}
+                            opacity={0.38}
+                        />
+
+                        {/* Upper Raised Chabutra Platform (Tier 2) */}
+                        <ellipse
+                            cx={layout.trunk.baseX}
+                            cy={layout.trunk.baseY + 38}
+                            rx={195}
+                            ry={36}
+                            fill={isRajashahi ? '#78350f' : '#15803d'}
+                            opacity={0.55}
+                        />
+
+                        {/* Sprawling Ancient Buttress Roots Anchored into the Soil & Stones */}
+                        {[-190, -135, -80, -35, 35, 80, 135, 190].map((rx, idx) => (
+                            <path
+                                key={idx}
+                                d={`M ${layout.trunk.baseX} ${layout.trunk.baseY} Q ${layout.trunk.baseX + rx * 0.45} ${layout.trunk.baseY + 26} ${layout.trunk.baseX + rx} ${layout.trunk.baseY + 58}`}
+                                fill="none"
+                                stroke={isRajashahi ? '#4a1202' : '#381a07'}
+                                strokeWidth={Math.max(6, 22 - Math.abs(rx) * 0.08)}
+                                strokeLinecap="round"
+                            />
+                        ))}
+
+                        {/* Fresh Green Grass & Floral Tufts around Chabutra */}
+                        {[-120, -75, -25, 25, 75, 120].map((gx, idx) => (
+                            <path
+                                key={`grass-${idx}`}
+                                d={`M ${layout.trunk.baseX + gx} ${layout.trunk.baseY + 44} L ${layout.trunk.baseX + gx - 7} ${layout.trunk.baseY + 26} M ${layout.trunk.baseX + gx} ${layout.trunk.baseY + 44} L ${layout.trunk.baseX + gx + 7} ${layout.trunk.baseY + 24}`}
+                                stroke="#22c55e"
+                                strokeWidth={2.2}
+                                strokeLinecap="round"
+                            />
+                        ))}
+                    </g>
+
+                    {/* 4. Ancient Grand Sculptural Banyan Trunk (Rising from Roots to Root Ancestor) */}
+                    <g className="vatvriksha-grand-trunk">
+                        {/* Flared Buttress Trunk Body */}
                         <path
-                            key={root.id}
-                            d={root.pathData}
-                            fill="none"
-                            stroke="url(#aerial-root-gradient)"
-                            strokeWidth={root.thickness}
-                            strokeLinecap="round"
-                            strokeDasharray="4 1"
+                            d={`M ${layout.trunk.baseX - 75} ${layout.trunk.baseY + 15} Q ${layout.trunk.baseX - 48} ${(layout.trunk.baseY + layout.trunk.topY) / 2} ${layout.trunk.topX - 34} ${layout.trunk.topY + 30} L ${layout.trunk.topX + 34} ${layout.trunk.topY + 30} Q ${layout.trunk.baseX + 48} ${(layout.trunk.baseY + layout.trunk.topY) / 2} ${layout.trunk.baseX + 75} ${layout.trunk.baseY + 15} Z`}
+                            fill={isRajashahi ? 'url(#royal-wood-gradient)' : 'url(#natural-wood-gradient)'}
+                            stroke={isRajashahi ? '#3b0d01' : '#1e1107'}
+                            strokeWidth={3.5}
                         />
-                    ))}
-                </g>
 
-                {/* 3. Deep Banyan Earth Mound & Flared Buttress Roots */}
-                <g className="vatvriksha-earth-roots" opacity={0.95}>
-                    {/* Lush Green Grassy Earth Mound */}
-                    <ellipse
-                        cx={layout.trunk.baseX}
-                        cy={layout.trunk.baseY + 45}
-                        rx={240}
-                        ry={50}
-                        fill={isRajashahi ? '#57330d' : '#14532d'}
-                        opacity={0.35}
-                    />
-                    <ellipse
-                        cx={layout.trunk.baseX}
-                        cy={layout.trunk.baseY + 35}
-                        rx={190}
-                        ry={35}
-                        fill={isRajashahi ? '#78350f' : '#15803d'}
-                        opacity={0.5}
-                    />
+                        {/* Vertical Trunk Bark Grain Textures, Knots & Deep Furrows */}
+                        {[-40, -22, -8, 8, 22, 40].map((gx, idx) => (
+                            <path
+                                key={idx}
+                                d={`M ${layout.trunk.baseX + gx * 1.6} ${layout.trunk.baseY + 6} Q ${layout.trunk.baseX + gx} ${(layout.trunk.baseY + layout.trunk.topY) / 2} ${layout.trunk.topX + gx * 0.7} ${layout.trunk.topY + 35}`}
+                                fill="none"
+                                stroke="rgba(255, 255, 255, 0.2)"
+                                strokeWidth={2.5}
+                                strokeLinecap="round"
+                            />
+                        ))}
+                    </g>
 
-                    {/* Sprawling Ancient Buttress Roots Anchored into the Soil */}
-                    {[-180, -120, -70, -30, 30, 70, 120, 180].map((rx, idx) => (
-                        <path
-                            key={idx}
-                            d={`M ${layout.trunk.baseX} ${layout.trunk.baseY} Q ${layout.trunk.baseX + rx * 0.45} ${layout.trunk.baseY + 25} ${layout.trunk.baseX + rx} ${layout.trunk.baseY + 55}`}
-                            fill="none"
-                            stroke={isRajashahi ? '#4a1202' : '#381a07'}
-                            strokeWidth={Math.max(6, 20 - Math.abs(rx) * 0.08)}
-                            strokeLinecap="round"
-                        />
-                    ))}
+                    {/* 5. Wooden Branches Connecting All Generations */}
+                    <g className="vatvriksha-branches-layer">
+                        {layout.branches.map(branch => {
+                            const isBranchLit = branch.isHighlighted || (
+                                activeGlowingSet.has(branch.sourceId) && activeGlowingSet.has(branch.targetId)
+                            );
+                            return (
+                                <VatvrikshaBranch
+                                    key={branch.id}
+                                    branch={{ ...branch, isHighlighted: isBranchLit }}
+                                    theme={theme}
+                                />
+                            );
+                        })}
+                    </g>
 
-                    {/* Grass tufts on mound */}
-                    {[-100, -50, 0, 50, 100].map((gx, idx) => (
-                        <path
-                            key={`grass-${idx}`}
-                            d={`M ${layout.trunk.baseX + gx} ${layout.trunk.baseY + 40} L ${layout.trunk.baseX + gx - 6} ${layout.trunk.baseY + 24} M ${layout.trunk.baseX + gx} ${layout.trunk.baseY + 40} L ${layout.trunk.baseX + gx + 6} ${layout.trunk.baseY + 22}`}
-                            stroke="#22c55e"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                        />
-                    ))}
-                </g>
+                    {/* 6. Major Lineage Branch Badges / Ribbons (शाखा पट्टिका) */}
+                    <g className="vatvriksha-ribbons-layer" pointerEvents="none">
+                        {layout.branchRibbons.map(ribbon => (
+                            <g
+                                key={ribbon.id}
+                                transform={`translate(${ribbon.x}, ${ribbon.y}) rotate(${ribbon.angle})`}
+                                className="transition-transform duration-300"
+                            >
+                                <rect
+                                    x={-52}
+                                    y={-12}
+                                    width={104}
+                                    height={24}
+                                    rx={12}
+                                    fill={isRajashahi ? '#7c2d12' : '#064e3b'}
+                                    stroke="#ffd700"
+                                    strokeWidth={1.5}
+                                    filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
+                                />
+                                <text
+                                    x={0}
+                                    y={1}
+                                    textAnchor="middle"
+                                    dominantBaseline="central"
+                                    fill="#fef08a"
+                                    fontSize={10}
+                                    fontWeight="900"
+                                    letterSpacing="0.04em"
+                                >
+                                    🌿 {ribbon.name} શાખા
+                                </text>
+                            </g>
+                        ))}
+                    </g>
 
-                {/* 4. Ancient Grand Banyan Trunk (Rising from Roots to Root Ancestor) */}
-                <g className="vatvriksha-grand-trunk">
-                    {/* Flared Buttress Trunk Body */}
-                    <path
-                        d={`M ${layout.trunk.baseX - 70} ${layout.trunk.baseY + 15} Q ${layout.trunk.baseX - 45} ${(layout.trunk.baseY + layout.trunk.topY) / 2} ${layout.trunk.topX - 32} ${layout.trunk.topY + 30} L ${layout.trunk.topX + 32} ${layout.trunk.topY + 30} Q ${layout.trunk.baseX + 45} ${(layout.trunk.baseY + layout.trunk.topY) / 2} ${layout.trunk.baseX + 70} ${layout.trunk.baseY + 15} Z`}
-                        fill={isRajashahi ? 'url(#royal-wood-gradient)' : 'url(#natural-wood-gradient)'}
-                        stroke={isRajashahi ? '#3b0d01' : '#1e1107'}
-                        strokeWidth={3}
-                    />
-
-                    {/* Vertical Trunk Bark Grain Textures & Furrows */}
-                    {[-35, -20, -6, 6, 20, 35].map((gx, idx) => (
-                        <path
-                            key={idx}
-                            d={`M ${layout.trunk.baseX + gx * 1.6} ${layout.trunk.baseY + 5} Q ${layout.trunk.baseX + gx} ${(layout.trunk.baseY + layout.trunk.topY) / 2} ${layout.trunk.topX + gx * 0.7} ${layout.trunk.topY + 35}`}
-                            fill="none"
-                            stroke="rgba(255, 255, 255, 0.18)"
-                            strokeWidth={2.5}
-                            strokeLinecap="round"
-                        />
-                    ))}
-                </g>
-
-                {/* 5. Wooden Branches Connecting All Generations */}
-                <g className="vatvriksha-branches-layer">
-                    {layout.branches.map(branch => (
-                        <VatvrikshaBranch
-                            key={branch.id}
-                            branch={branch}
-                            theme={theme}
-                        />
-                    ))}
-                </g>
-
-                {/* 6. Foliage & Leaf Medallion Nodes (Family Members) */}
-                <g className="vatvriksha-leaves-layer">
-                    {layout.nodes.map(node => (
-                        <VatvrikshaLeafNode
-                            key={node.id}
-                            node={node}
-                            language={language}
-                            theme={theme}
-                            isSelected={selectedNodeId === node.id}
-                            isHighlighted={highlightedPath.includes(node.id)}
-                            canEdit={canEdit}
-                            onViewDetails={onViewDetails}
-                            onEditPerson={onEditPerson}
-                            onAddChild={onAddChild}
-                            onKinshipSelect={onKinshipSelect}
-                        />
-                    ))}
-                </g>
+                    {/* 7. Foliage & Leaf Medallion Nodes (Family Members) */}
+                    <g className="vatvriksha-leaves-layer">
+                        {layout.nodes.map(node => (
+                            <VatvrikshaLeafNode
+                                key={node.id}
+                                node={node}
+                                language={language}
+                                theme={theme}
+                                isSelected={selectedNodeId === node.id}
+                                isHighlighted={activeGlowingSet.has(node.id)}
+                                canEdit={canEdit}
+                                onViewDetails={onViewDetails}
+                                onEditPerson={onEditPerson}
+                                onAddChild={onAddChild}
+                                onKinshipSelect={onKinshipSelect}
+                                onHoverEnter={handleHoverEnter}
+                                onHoverLeave={handleHoverLeave}
+                            />
+                        ))}
+                    </g>
                 </g>
             </svg>
 
@@ -508,16 +612,16 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
             {/* Bottom-Left Quick Legend */}
             <div className="hidden md:flex items-center gap-3 absolute bottom-6 left-6 z-20 px-3.5 py-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-gray-200/60 dark:border-slate-800 text-xs font-bold text-gray-600 dark:text-gray-300 shadow-md pointer-events-none">
                 <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                    <span>पुरुष (Male)</span>
+                    <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+                    <span>પુરુષ (Male)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-rose-500"></span>
-                    <span>महिला (Female)</span>
+                    <span className="w-3 h-3 rounded-full bg-rose-600"></span>
+                    <span>મહિલા (Female)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-amber-400"></span>
-                    <span>दिवंगत (🕊️ Memorial)</span>
+                    <span className="w-3 h-3 rounded-full bg-amber-600"></span>
+                    <span>દિવંગત (🕊️ Memorial)</span>
                 </div>
             </div>
         </div>

@@ -15,6 +15,8 @@ interface VatvrikshaLeafNodeProps {
     onEditPerson?: (person: Person) => void;
     onAddChild?: (parentId: string, type: 'son' | 'daughter') => void;
     onKinshipSelect?: (person: Person) => void;
+    onHoverEnter?: (personId: string) => void;
+    onHoverLeave?: () => void;
 }
 
 export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
@@ -28,6 +30,8 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
     onEditPerson,
     onAddChild,
     onKinshipSelect,
+    onHoverEnter,
+    onHoverLeave,
 }) => {
     const [showQuickMenu, setShowQuickMenu] = useState(false);
     const { person } = node;
@@ -44,6 +48,11 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
     const initials = (cleanDisplayName || '?').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
     const spouseInitials = (cleanSpouseName || '?').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
 
+    // Alternating vertical stagger offset to prevent adjacent sibling label collisions
+    const staggerY = (Math.abs(Math.round(node.x)) % 2 === 0) ? 0 : 8;
+    const singleLabelY = 44 + staggerY;
+    const coupleLabelY = 42 + staggerY;
+
     // ────────────────────────────────────────────
     // Case 1: Root Ancestor Grand Trunk Seal
     // ────────────────────────────────────────────
@@ -53,10 +62,18 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
                 transform={`translate(${node.x}, ${node.y})`}
                 className="cursor-pointer select-none group"
                 onClick={() => onViewDetails(person)}
+                onMouseEnter={() => {
+                    setShowQuickMenu(true);
+                    onHoverEnter?.(person.id);
+                }}
+                onMouseLeave={() => {
+                    setShowQuickMenu(false);
+                    onHoverLeave?.();
+                }}
             >
-                {/* Glow ring when selected */}
+                {/* Flowing Golden Pulse Ring when selected or highlighted */}
                 {(isSelected || isHighlighted) && (
-                    <circle r={64} fill="none" stroke="#f59e0b" strokeWidth={4} className="animate-pulse" filter="url(#golden-branch-glow)" />
+                    <circle r={66} fill="none" stroke="#f59e0b" strokeWidth={5} className="animate-pulse" filter="url(#golden-branch-glow)" />
                 )}
 
                 {/* Outer Wooden Ornate Medallion */}
@@ -68,7 +85,7 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
                     className="shadow-2xl transition-transform duration-300 group-hover:scale-105"
                 />
 
-                {/* Inner Ring */}
+                {/* Inner Ring with Auspicious Stitch Border */}
                 <circle
                     r={48}
                     fill={isRajashahi ? '#fff9f0' : '#ffffff'}
@@ -77,7 +94,7 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
                     strokeDasharray="4 2"
                 />
 
-                {/* Avatar / Photo */}
+                {/* Avatar / Photo Cameo */}
                 {person.photoUrl ? (
                     <clipPath id={`clip-root-${node.id}`}>
                         <circle r={36} cx={0} cy={-6} />
@@ -115,9 +132,9 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
                 {/* Banner Ribbon under Root */}
                 <g transform="translate(0, 36)">
                     <rect
-                        x={-75}
+                        x={-78}
                         y={0}
-                        width={150}
+                        width={156}
                         height={24}
                         rx={12}
                         fill={isRajashahi ? '#800000' : '#0f172a'}
@@ -159,13 +176,19 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
         <g
             transform={`translate(${node.x}, ${node.y})`}
             className="cursor-pointer select-none group"
-            onMouseEnter={() => setShowQuickMenu(true)}
-            onMouseLeave={() => setShowQuickMenu(false)}
+            onMouseEnter={() => {
+                setShowQuickMenu(true);
+                onHoverEnter?.(person.id);
+            }}
+            onMouseLeave={() => {
+                setShowQuickMenu(false);
+                onHoverLeave?.();
+            }}
         >
             {/* Selection / Highlight Pulse Glow */}
             {(isSelected || isHighlighted) && (
                 <circle
-                    r={node.hasSpouse ? 52 : 36}
+                    r={node.hasSpouse ? 54 : 38}
                     fill="none"
                     stroke="#fbbf24"
                     strokeWidth={4}
@@ -174,15 +197,15 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
                 />
             )}
 
-            {/* If Single Member: Render Single Botanical Leaf */}
+            {/* If Single Member: Render Single Botanical Leaf with Cameo */}
             {!node.hasSpouse ? (
                 <g
                     className="transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-2"
                     onClick={() => onViewDetails(person)}
                 >
-                    {/* Natural Leaf Shape */}
+                    {/* Natural Sacred Peepal / Banyan Leaf Silhouette */}
                     <path
-                        d="M 0 -36 C 28 -28, 36 12, 0 36 C -36 12, -28 -28, 0 -36 Z"
+                        d="M 0 -38 C 28 -28, 38 10, 0 38 C -38 10, -28 -28, 0 -38 Z"
                         fill={
                             node.isDeceased
                                 ? (isRajashahi ? 'url(#deceased-leaf-royal)' : 'url(#deceased-leaf-gradient)')
@@ -193,42 +216,74 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
                         className="shadow-md"
                     />
 
-                    {/* Leaf Central Vein */}
-                    <line x1={0} y1={-32} x2={0} y2={30} stroke={isRajashahi ? 'rgba(255,215,0,0.4)' : 'rgba(255,255,255,0.4)'} strokeWidth={1.5} />
-
-                    {/* Member Monogram Circle inside Leaf */}
-                    <circle
-                        r={18}
-                        cx={0}
-                        cy={-2}
-                        fill={person.gender === 'FEMALE' ? '#e11d48' : '#2563eb'}
-                        stroke="#ffffff"
-                        strokeWidth={1.5}
+                    {/* Delicate Natural Leaf Veins */}
+                    <path
+                        d="M 0 -34 L 0 32 M 0 -18 Q 14 -12 24 -4 M 0 -18 Q -14 -12 -24 -4 M 0 -2 Q 15 4 24 14 M 0 -2 Q -15 4 -24 14"
+                        fill="none"
+                        stroke={isRajashahi ? 'rgba(255,215,0,0.35)' : 'rgba(255,255,255,0.35)'}
+                        strokeWidth={1.2}
+                        strokeLinecap="round"
                     />
 
-                    <text
-                        x={0}
-                        y={0}
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        fill="#ffffff"
-                        fontSize={10}
-                        fontWeight="900"
-                    >
-                        {initials}
-                    </text>
+                    {/* Member Photo Cameo or Monogram Circle inside Leaf */}
+                    {person.photoUrl ? (
+                        <>
+                            <clipPath id={`clip-leaf-${node.id}`}>
+                                <circle r={18} cx={0} cy={-2} />
+                            </clipPath>
+                            <circle r={20} cx={0} cy={-2} fill="none" stroke="#ffd700" strokeWidth={2} />
+                            <image
+                                href={person.photoUrl}
+                                x={-18}
+                                y={-20}
+                                width={36}
+                                height={36}
+                                clipPath={`url(#clip-leaf-${node.id})`}
+                                preserveAspectRatio="xMidYMid slice"
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <circle
+                                r={18}
+                                cx={0}
+                                cy={-2}
+                                fill={
+                                    node.isDeceased
+                                        ? '#78350f'
+                                        : person.gender === 'FEMALE'
+                                        ? '#e11d48'
+                                        : '#1d4ed8'
+                                }
+                                stroke="#ffffff"
+                                strokeWidth={1.5}
+                            />
+                            <text
+                                x={0}
+                                y={0}
+                                textAnchor="middle"
+                                dominantBaseline="central"
+                                fill="#ffffff"
+                                fontSize={10}
+                                fontWeight="900"
+                            >
+                                {initials}
+                            </text>
+                        </>
+                    )}
 
-                    {/* Member Name Label beneath leaf */}
-                    <g transform="translate(0, 44)">
+                    {/* Member Name Label beneath leaf with smart non-colliding stagger */}
+                    <g transform={`translate(0, ${singleLabelY})`}>
                         <rect
                             x={-55}
                             y={0}
                             width={110}
                             height={18}
                             rx={9}
-                            fill={isRajashahi ? 'rgba(255,253,248,0.95)' : 'rgba(255,255,255,0.95)'}
+                            fill={isRajashahi ? 'rgba(255,253,248,0.96)' : 'rgba(255,255,255,0.96)'}
                             stroke={isRajashahi ? '#ffd700' : '#cbd5e1'}
                             strokeWidth={1}
+                            className="shadow-sm"
                         />
                         <text
                             x={0}
@@ -260,48 +315,92 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
                     {/* Left Leaf (Member) */}
                     <g transform="translate(-24, 0) rotate(-12)">
                         <path
-                            d="M 0 -32 C 24 -24, 30 10, 0 32 C -30 10, -24 -24, 0 -32 Z"
+                            d="M 0 -34 C 24 -24, 32 10, 0 34 C -32 10, -24 -24, 0 -34 Z"
                             fill={isRajashahi ? 'url(#banyan-leaf-royal)' : 'url(#banyan-leaf-gradient)'}
                             stroke={isRajashahi ? '#ffd700' : '#15803d'}
                             strokeWidth={1.5}
                         />
-                        <circle r={15} cx={0} cy={-2} fill={person.gender === 'FEMALE' ? '#e11d48' : '#2563eb'} stroke="#ffffff" strokeWidth={1} />
-                        <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fill="#ffffff" fontSize={9} fontWeight="900">
-                            {initials}
-                        </text>
+                        {/* Leaf veins */}
+                        <line x1={0} y1={-28} x2={0} y2={28} stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
+                        {person.photoUrl ? (
+                            <>
+                                <clipPath id={`clip-left-${node.id}`}>
+                                    <circle r={15} cx={0} cy={-2} />
+                                </clipPath>
+                                <circle r={16.5} cx={0} cy={-2} fill="none" stroke="#ffd700" strokeWidth={1.5} />
+                                <image
+                                    href={person.photoUrl}
+                                    x={-15}
+                                    y={-17}
+                                    width={30}
+                                    height={30}
+                                    clipPath={`url(#clip-left-${node.id})`}
+                                    preserveAspectRatio="xMidYMid slice"
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <circle r={15} cx={0} cy={-2} fill={person.gender === 'FEMALE' ? '#e11d48' : '#1d4ed8'} stroke="#ffffff" strokeWidth={1} />
+                                <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fill="#ffffff" fontSize={9} fontWeight="900">
+                                    {initials}
+                                </text>
+                            </>
+                        )}
                     </g>
 
                     {/* Right Leaf (Spouse) */}
                     <g transform="translate(24, 0) rotate(12)">
                         <path
-                            d="M 0 -32 C 24 -24, 30 10, 0 32 C -30 10, -24 -24, 0 -32 Z"
+                            d="M 0 -34 C 24 -24, 32 10, 0 34 C -32 10, -24 -24, 0 -34 Z"
                             fill={isRajashahi ? 'url(#spouse-leaf-royal)' : 'url(#spouse-leaf-gradient)'}
                             stroke={isRajashahi ? '#ffd700' : '#e11d48'}
                             strokeWidth={1.5}
                         />
-                        <circle r={15} cx={0} cy={-2} fill={person.gender === 'FEMALE' ? '#2563eb' : '#e11d48'} stroke="#ffffff" strokeWidth={1} />
-                        <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fill="#ffffff" fontSize={9} fontWeight="900">
-                            {spouseInitials}
-                        </text>
+                        <line x1={0} y1={-28} x2={0} y2={28} stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
+                        {node.spousePhotoUrl ? (
+                            <>
+                                <clipPath id={`clip-right-${node.id}`}>
+                                    <circle r={15} cx={0} cy={-2} />
+                                </clipPath>
+                                <circle r={16.5} cx={0} cy={-2} fill="none" stroke="#ffd700" strokeWidth={1.5} />
+                                <image
+                                    href={node.spousePhotoUrl}
+                                    x={-15}
+                                    y={-17}
+                                    width={30}
+                                    height={30}
+                                    clipPath={`url(#clip-right-${node.id})`}
+                                    preserveAspectRatio="xMidYMid slice"
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <circle r={15} cx={0} cy={-2} fill={person.gender === 'FEMALE' ? '#1d4ed8' : '#e11d48'} stroke="#ffffff" strokeWidth={1} />
+                                <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fill="#ffffff" fontSize={9} fontWeight="900">
+                                    {spouseInitials}
+                                </text>
+                            </>
+                        )}
                     </g>
 
-                    {/* Center Union Heart / Knot */}
-                    <circle r={9} cx={0} cy={4} fill="#e11d48" stroke="#ffffff" strokeWidth={1} />
-                    <text x={0} y={5} textAnchor="middle" dominantBaseline="central" fill="#ffffff" fontSize={8}>
+                    {/* Center Union Heart / Sacred Love Knot */}
+                    <circle r={10} cx={0} cy={4} fill="#e11d48" stroke="#ffd700" strokeWidth={1.5} />
+                    <text x={0} y={5} textAnchor="middle" dominantBaseline="central" fill="#ffffff" fontSize={9}>
                         ❤️
                     </text>
 
-                    {/* Combined Names Label Bar */}
-                    <g transform="translate(0, 42)">
+                    {/* Combined Names Label Bar with smart stagger */}
+                    <g transform={`translate(0, ${coupleLabelY})`}>
                         <rect
-                            x={-70}
+                            x={-72}
                             y={0}
-                            width={140}
+                            width={144}
                             height={20}
                             rx={10}
                             fill={isRajashahi ? '#fffdf8' : '#ffffff'}
                             stroke={isRajashahi ? '#ffd700' : '#cbd5e1'}
                             strokeWidth={1}
+                            className="shadow-sm"
                         />
                         <text
                             x={0}
@@ -321,8 +420,8 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
             {/* Memorial 🕊️ Badge if Deceased */}
             {node.isDeceased && (
                 <g transform="translate(18, -26)">
-                    <circle r={7} fill="#1e293b" stroke="#ffffff" strokeWidth={1} />
-                    <text x={0} y={1} textAnchor="middle" dominantBaseline="central" fontSize={7} fill="#ffffff">
+                    <circle r={8} fill="#1e293b" stroke="#ffd700" strokeWidth={1} />
+                    <text x={0} y={1} textAnchor="middle" dominantBaseline="central" fontSize={7.5} fill="#ffffff">
                         🕊️
                     </text>
                 </g>
@@ -330,7 +429,7 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
 
             {/* Interactive Quick-Action Floating Menu for Editor/Admin on Hover */}
             {canEdit && showQuickMenu && (
-                <g transform="translate(0, -56)" className="animate-fadeIn">
+                <g transform="translate(0, -58)" className="animate-fadeIn">
                     <rect
                         x={-55}
                         y={-14}
@@ -340,7 +439,7 @@ export const VatvrikshaLeafNode: React.FC<VatvrikshaLeafNodeProps> = ({
                         fill="#0f172a"
                         stroke="#e2e8f0"
                         strokeWidth={1}
-                        opacity={0.95}
+                        opacity={0.96}
                     />
 
                     {/* Add Son Button */}
