@@ -206,13 +206,10 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
                 </div>
             </div>
 
-            {/* Main Infinite SVG Tree Canvas */}
+            {/* Main Infinite SVG Tree Canvas with overflow visible */}
             <svg
                 className="vatvriksha-svg-canvas absolute inset-0 w-full h-full pointer-events-auto"
-                style={{
-                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
-                    transformOrigin: '0 0',
-                }}
+                style={{ overflow: 'visible' }}
             >
                 <defs>
                     {/* Natural Wooden Bark Gradient */}
@@ -322,8 +319,13 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
                     </filter>
                 </defs>
 
-                {/* 1. Lush Green Canopy Foliage Clouds (Background Body of the Tree) */}
-                <g className="vatvriksha-canopy-layer" pointerEvents="none">
+                {/* Main Interactive Pan & Zoom Tree Viewport */}
+                <g 
+                    className="vatvriksha-viewport-transform"
+                    transform={`translate(${pan.x}, ${pan.y}) scale(${scale})`}
+                >
+                    {/* 1. Lush Green Canopy Foliage Clouds (Background Body of the Tree) */}
+                    <g className="vatvriksha-canopy-layer" pointerEvents="none">
                     {layout.canopyClouds.map(cloud => {
                         const gradientId = cloud.colorVariant === 'deep'
                             ? 'url(#canopy-cloud-deep)'
@@ -457,6 +459,7 @@ export const VatvrikshaView: React.FC<VatvrikshaViewProps> = ({
                             onKinshipSelect={onKinshipSelect}
                         />
                     ))}
+                </g>
                 </g>
             </svg>
 
