@@ -25,10 +25,10 @@ import TopNavigationDock from './components/TopNavigationDock';
 import CommandPalette from './components/CommandPalette';
 import KinshipModal from './components/KinshipModal';
 import { translations } from './i18n';
-import { loadFamilyTreeData } from './data';
 import type { Person } from './types';
 import { useFamilyTree } from './hooks/useFamilyTree';
 import { supabase } from './lib/supabase';
+import { saveTreeToLocal, resetTree } from './features/family-tree/services/treeRepository';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import HeaderEditor from './components/HeaderEditor';
 import TranslationOverlay from './components/TranslationOverlay';
@@ -170,15 +170,26 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     const newRootId = crypto.randomUUID();
     const oldRootId = currentData.id;
 
+    // Helper to recursively increment generation for all descendants
+    const incrementGen = (node: Person): Person => ({
+      ...node,
+      generation: node.generation + 1,
+      children: node.children ? node.children.map(incrementGen) : []
+    });
+
+    const shiftedOldTree = incrementGen(currentData);
+
     const newRoot: Person = {
       id: newRootId,
       name: 'New Ancestor',
       generation: 1,
       gender: 'MALE',
-      children: [{ ...currentData }]
+      children: [shiftedOldTree]
     };
 
     setCurrentData(newRoot);
+    saveTreeToLocal(newRoot, selectedFamilyId);
+
     try {
         const { error: insertError } = await supabase.from('people').insert({
           id: newRootId,
@@ -186,6 +197,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           name: 'New Ancestor',
           gender: 'MALE',
           generation: 1,
+          family_id: selectedFamilyId,
         });
         if (insertError) throw insertError;
         if (oldRootId) {
@@ -195,7 +207,7 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
     } catch (e) {
         console.error(e);
     }
-  }, [currentData, setCurrentData, refreshDb]);
+  }, [currentData, selectedFamilyId, setCurrentData, refreshDb]);
 
   const {
     nodes,
@@ -291,11 +303,11 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
 
   const handleReset = useCallback(async () => {
     if (confirm("Reset to default?")) {
-      const defaultData = await loadFamilyTreeData();
+      const defaultData = await resetTree(selectedFamilyId);
       setCurrentData(defaultData);
       refreshLayout(defaultData);
     }
-  }, [setCurrentData, refreshLayout]);
+  }, [selectedFamilyId, setCurrentData, refreshLayout]);
 
   const handleExport = () => {
     const jsonString = JSON.stringify({ tree: currentData }, null, 2);

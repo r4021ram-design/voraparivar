@@ -51,8 +51,16 @@ export async function fetchFamilies(): Promise<Family[]> {
     }
 }
 
+interface ProfileRow {
+    id: string;
+    role: FamilyUser['role'];
+    family_id: string | null;
+    email: string | null;
+    created_at?: string;
+}
+
 /**
- * Create a new family and optionally its initial root ancestor node.
+ * Create a new family and its initial root ancestor node.
  */
 export async function createFamily(name: string, rootPersonName?: string): Promise<{ success: boolean; family?: Family; error?: string }> {
     try {
@@ -73,27 +81,27 @@ export async function createFamily(name: string, rootPersonName?: string): Promi
 
         if (insertError) throw insertError;
 
-        // If root ancestor name provided, create initial root person in people table
-        if (rootPersonName && rootPersonName.trim()) {
-            const rootId = `root-${id}`;
-            await supabase.from('people').insert({
-                id: rootId,
-                parent_id: null,
-                name: rootPersonName.trim(),
-                relation: 'Mukhya Purush',
-                generation: 1,
-                gender: 'MALE',
-                family_id: id,
-            });
-        }
+        // Always create initial root person in people table to satisfy foreign keys
+        const rootName = (rootPersonName && rootPersonName.trim()) || 'Mukhya Purush';
+        const rootId = `root-${id}`;
+        await supabase.from('people').insert({
+            id: rootId,
+            parent_id: null,
+            name: rootName,
+            relation: 'Mukhya Purush',
+            generation: 1,
+            gender: 'MALE',
+            family_id: id,
+        });
 
         return {
             success: true,
-            family: { id, name: trimmedName, slug, memberCount: rootPersonName ? 1 : 0 },
+            family: { id, name: trimmedName, slug, memberCount: 1 },
         };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('Error creating family:', err);
-        return { success: false, error: err.message || 'Failed to create family' };
+        const message = err instanceof Error ? err.message : 'Failed to create family';
+        return { success: false, error: message };
     }
 }
 
@@ -120,14 +128,21 @@ export async function fetchFamilyUsers(): Promise<FamilyUser[]> {
             });
         }
 
-        return profiles.map((p: any) => ({
-            id: p.id,
-            email: p.email || 'No email',
-            role: p.role,
-            family_id: p.family_id,
-            familyName: p.family_id ? (familyMap[p.family_id] || p.family_id) : 'All Families (Admin)',
-            created_at: p.created_at,
-        }));
+        return (profiles as unknown as ProfileRow[]).map((p) => {
+            const rawEmail = p.email || 'No email';
+            const displayEmail = rawEmail.endsWith('@family.local')
+                ? rawEmail.replace('@family.local', '')
+                : rawEmail;
+
+            return {
+                id: p.id,
+                email: displayEmail,
+                role: p.role,
+                family_id: p.family_id,
+                familyName: p.family_id ? (familyMap[p.family_id] || p.family_id) : 'All Families (Admin)',
+                created_at: p.created_at,
+            };
+        });
     } catch (err) {
         console.error('Error fetching family users:', err);
         return [];
@@ -139,8 +154,12 @@ export async function fetchFamilyUsers(): Promise<FamilyUser[]> {
  */
 export async function createFamilyUser(data: CreateUserData): Promise<{ success: boolean; error?: string }> {
     try {
+        const cleanUser = data.email.trim().toLowerCase();
+        // Support both full email and plain username (appends @family.local)
+        const emailToRegister = cleanUser.includes('@') ? cleanUser : `${cleanUser}@family.local`;
+
         const { data: res, error } = await supabase.rpc('create_family_user', {
-            new_email: data.email.trim(),
+            new_email: emailToRegister,
             new_password: data.password,
             user_role: data.role,
             target_family_id: data.family_id,
@@ -150,9 +169,10 @@ export async function createFamilyUser(data: CreateUserData): Promise<{ success:
         if (res && res.error) throw new Error(res.error);
 
         return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('Error creating family user:', err);
-        return { success: false, error: err.message || 'Failed to create user' };
+        const message = err instanceof Error ? err.message : 'Failed to create user';
+        return { success: false, error: message };
     }
 }
 
@@ -168,9 +188,10 @@ export async function resetFamilyUserPassword(userId: string, newPassword: strin
 
         if (error) throw error;
         return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('Error resetting password:', err);
-        return { success: false, error: err.message || 'Failed to reset password' };
+        const message = err instanceof Error ? err.message : 'Failed to reset password';
+        return { success: false, error: message };
     }
 }
 
@@ -185,8 +206,9 @@ export async function deleteFamilyUser(userId: string): Promise<{ success: boole
 
         if (error) throw error;
         return { success: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('Error deleting user:', err);
-        return { success: false, error: err.message || 'Failed to delete user' };
+        const message = err instanceof Error ? err.message : 'Failed to delete user';
+        return { success: false, error: message };
     }
 }

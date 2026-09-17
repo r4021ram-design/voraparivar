@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     X, Users, PlusCircle, Shield, KeyRound, Copy, 
     Trash2, RefreshCw, Eye, EyeOff, Building2, UserCheck, AlertCircle 
@@ -52,7 +52,7 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
     const [resettingUserId, setResettingUserId] = useState<string | null>(null);
     const [resetNewPassword, setResetNewPassword] = useState('');
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoadingFamilies(true);
         setLoadingUsers(true);
         try {
@@ -71,14 +71,14 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
             setLoadingFamilies(false);
             setLoadingUsers(false);
         }
-    };
+    }, [selectedFamilyForUser]);
 
     useEffect(() => {
         if (isOpen) {
             loadData();
             setStatusMessage(null);
         }
-    }, [isOpen]);
+    }, [isOpen, loadData]);
 
     if (!isOpen) return null;
 

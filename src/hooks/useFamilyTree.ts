@@ -88,21 +88,35 @@ export const useFamilyTree = (userRole: string, familyId: string = 'vora-parivar
         const newChildId = crypto.randomUUID();
         const isMale = type === 'son';
         let parentGen = 1;
+        let parentChildrenCount = 0;
 
-        // Find parent generation before tree update
-        const findGen = (root: Person): void => {
-            if (root.id === parentId) { parentGen = root.generation; return; }
-            root.children?.forEach(findGen);
+        // Find parent generation and child count synchronously before tree update
+        const findParentInfo = (root: Person): boolean => {
+            if (root.id === parentId) {
+                parentGen = root.generation;
+                parentChildrenCount = root.children?.length ?? 0;
+                return true;
+            }
+            if (root.children) {
+                for (const child of root.children) {
+                    if (findParentInfo(child)) return true;
+                }
+            }
+            return false;
         };
+        findParentInfo(currentData);
+
+        const childGen = parentGen + 1;
+        const childSortOrder = parentChildrenCount + 1;
 
         setCurrentData((prevData) => {
-            findGen(prevData);
             const newChild: Person = {
                 id: newChildId,
                 name: `New ${type === 'son' ? 'Son' : 'Daughter'}`,
-                generation: parentGen + 1,
+                generation: childGen,
                 relation: type === 'son' ? 'Son' : 'Daughter',
                 gender: isMale ? 'MALE' : 'FEMALE',
+                sort_order: childSortOrder,
                 children: [],
             };
             const newData = addChildToTree(prevData, parentId, newChild);
@@ -118,7 +132,8 @@ export const useFamilyTree = (userRole: string, familyId: string = 'vora-parivar
                 name: `New ${type === 'son' ? 'Son' : 'Daughter'}`,
                 gender: isMale ? 'MALE' : 'FEMALE',
                 relation: type === 'son' ? 'Son' : 'Daughter',
-                generation: parentGen + 1,
+                generation: childGen,
+                sort_order: childSortOrder,
                 family_id: familyId,
             });
             if (error) throw error;
@@ -126,7 +141,7 @@ export const useFamilyTree = (userRole: string, familyId: string = 'vora-parivar
         } catch (e) {
             console.error("Error adding child to DB:", e);
         }
-    }, [familyId, refreshDb, pushState]);
+    }, [currentData, familyId, refreshDb, pushState]);
 
     const handleDelete = useCallback(async (personId: string) => {
         if (personId.startsWith('root')) return;

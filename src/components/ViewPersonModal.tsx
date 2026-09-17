@@ -116,13 +116,13 @@ export default function ViewPersonModal({
                             />
                         ) : (
                             <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center font-black text-2xl ring-4 ring-white/40 shadow-xl">
-                                {person.name.trim().slice(0, 2).toUpperCase()}
+                                {(translateContent(person.name, 'name') || person.name || '?').trim().slice(0, 2).toUpperCase()}
                             </div>
                         )}
                         {/* Memorial Badge */}
                         {person.dateOfDeath && (
                             <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full border border-white/40 shadow">
-                                🕊️ {language === 'HI' ? 'स्व.' : 'Late'}
+                                🕊️ {language === 'HI' ? 'स्व.' : language === 'GU' ? 'સ્વ.' : 'Late'}
                             </span>
                         )}
                     </div>
@@ -206,7 +206,7 @@ export default function ViewPersonModal({
                                     <img src={person.spousePhotoUrl} alt="" className="w-12 h-12 rounded-full object-cover shadow-sm" />
                                 ) : (
                                     <div className="w-12 h-12 rounded-full bg-pink-200 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 font-bold flex items-center justify-center text-sm">
-                                        {translateContent(person.spouse, 'spouse').trim().slice(0, 2).toUpperCase()}
+                                        {(translateContent(person.spouse, 'spouse') || person.spouse || '?').trim().slice(0, 2).toUpperCase()}
                                     </div>
                                 )}
                                 <div>

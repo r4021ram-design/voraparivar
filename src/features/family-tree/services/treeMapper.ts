@@ -85,6 +85,7 @@ export function buildTreeFromRows(rows: PersonRow[]): Person | null {
     const buildChildren = (parentId: string): Person[] => {
         return rows
             .filter(r => r.parent_id === parentId)
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
             .map(r => ({
                 ...mapPersonRowToNode(r),
                 children: buildChildren(r.id),

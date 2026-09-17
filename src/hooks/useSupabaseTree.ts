@@ -39,14 +39,29 @@ export const useSupabaseTree = (familyId: string = 'vora-parivar') => {
                     else setData(await loadFamilyTreeData());
                 } else {
                     // New family initial default
-                    setData({
+                    const defaultRoot: Person = {
                         id: `root-${familyId}`,
                         name: 'Mukhya Purush',
                         generation: 1,
                         gender: 'MALE',
                         relation: 'Mukhya Purush',
                         children: [],
-                    });
+                    };
+                    setData(defaultRoot);
+                    // Persist initial root to Supabase to satisfy child foreign keys
+                    try {
+                        await supabase.from('people').upsert({
+                            id: defaultRoot.id,
+                            parent_id: null,
+                            name: defaultRoot.name,
+                            relation: defaultRoot.relation,
+                            generation: 1,
+                            gender: 'MALE',
+                            family_id: familyId,
+                        });
+                    } catch (upsertErr) {
+                        console.error('Failed to auto-upsert root ancestor:', upsertErr);
+                    }
                 }
                 return;
             }

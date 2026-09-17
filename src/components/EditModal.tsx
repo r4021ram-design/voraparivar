@@ -59,21 +59,19 @@ const EditModal = ({ person, onClose, onSave, language = 'EN', userRole }: EditM
         if (!formData) return;
         
         // Sync manual edits to the current language translation layer
-        // This fixes the bug where manual edits in Hindi/Gujarati don't show up in the UI
+        // This ensures edits in any language (including EN, HI, GU) update both root fields and that language's translation layer
         const finalData = { ...formData };
-        if (language !== 'EN') {
-            const updatedTranslations = { ...formData.translations };
-            updatedTranslations[language] = {
-                ...updatedTranslations[language],
-                name: formData.name,
-                occupation: formData.occupation,
-                relation: formData.relation,
-                bio: formData.bio,
-                spouse: formData.spouse,
-                spouseOccupation: formData.spouseOccupation
-            };
-            finalData.translations = updatedTranslations;
-        }
+        const updatedTranslations = { ...formData.translations };
+        updatedTranslations[language] = {
+            ...updatedTranslations[language],
+            name: formData.name,
+            occupation: formData.occupation,
+            relation: formData.relation,
+            bio: formData.bio,
+            spouse: formData.spouse,
+            spouseOccupation: formData.spouseOccupation
+        };
+        finalData.translations = updatedTranslations;
 
         onSave(finalData);
         onClose();

@@ -71,16 +71,18 @@ describe('mapTreeNodeToRow', () => {
 });
 
 describe('buildTreeFromRows', () => {
-    it('builds a tree from flat rows', () => {
+    it('builds a tree from flat rows and sorts siblings by sort_order', () => {
         const rows: PersonRow[] = [
             { id: 'root', parent_id: null, name: 'Root' },
-            { id: 'c1', parent_id: 'root', name: 'Child 1' },
-            { id: 'c2', parent_id: 'root', name: 'Child 2' },
+            { id: 'c2', parent_id: 'root', name: 'Child 2', sort_order: 2 },
+            { id: 'c1', parent_id: 'root', name: 'Child 1', sort_order: 1 },
             { id: 'gc1', parent_id: 'c1', name: 'Grandchild' },
         ];
         const tree = buildTreeFromRows(rows);
         expect(tree).not.toBeNull();
         expect(tree!.children.length).toBe(2);
+        expect(tree!.children[0].name).toBe('Child 1');
+        expect(tree!.children[1].name).toBe('Child 2');
         expect(tree!.children[0].children.length).toBe(1);
         expect(tree!.children[0].children[0].name).toBe('Grandchild');
     });

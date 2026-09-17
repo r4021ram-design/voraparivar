@@ -62,6 +62,7 @@ AS $$
 DECLARE
   new_uid uuid;
   caller_role text;
+  normalized_email text;
 BEGIN
   -- Verify caller is authenticated and has ADMIN role
   SELECT role INTO caller_role FROM public.profiles WHERE id = auth.uid();
@@ -69,9 +70,14 @@ BEGIN
     RAISE EXCEPTION 'Access Denied: Only Admins can create new family users';
   END IF;
 
+  normalized_email := lower(trim(new_email));
+  IF position('@' in normalized_email) = 0 THEN
+    normalized_email := normalized_email || '@family.local';
+  END IF;
+
   -- Check if user already exists
-  IF EXISTS (SELECT 1 FROM auth.users WHERE email = lower(trim(new_email))) THEN
-    RAISE EXCEPTION 'User with email % already exists', new_email;
+  IF EXISTS (SELECT 1 FROM auth.users WHERE email = normalized_email) THEN
+    RAISE EXCEPTION 'User with email % already exists', normalized_email;
   END IF;
 
   new_uid := gen_random_uuid();
@@ -94,7 +100,7 @@ BEGIN
     new_uid,
     'authenticated',
     'authenticated',
-    lower(trim(new_email)),
+    normalized_email,
     crypt(new_password, gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}',
@@ -105,9 +111,9 @@ BEGIN
 
   -- Upsert into public.profiles
   INSERT INTO public.profiles (id, role, family_id, email, created_at)
-  VALUES (new_uid, user_role, target_family_id, lower(trim(new_email)), now())
+  VALUES (new_uid, user_role, target_family_id, normalized_email, now())
   ON CONFLICT (id) DO UPDATE
-  SET role = user_role, family_id = target_family_id, email = lower(trim(new_email));
+  SET role = user_role, family_id = target_family_id, email = normalized_email;
 
   RETURN jsonb_build_object('success', true, 'user_id', new_uid);
 END;
