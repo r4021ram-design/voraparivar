@@ -29,6 +29,8 @@ interface NavigationDrawersProps {
     handlePrint: () => void;
     handleReset: () => void;
     onLogout: () => void;
+    viewMode?: 'flow' | 'vatvriksha';
+    onToggleViewMode?: (mode: 'flow' | 'vatvriksha') => void;
 }
 
 const NavigationDrawers: React.FC<NavigationDrawersProps> = ({
@@ -52,7 +54,9 @@ const NavigationDrawers: React.FC<NavigationDrawersProps> = ({
     handleExportPDF,
     handlePrint,
     handleReset,
-    onLogout
+    onLogout,
+    viewMode = 'flow',
+    onToggleViewMode,
 }) => {
     return (
         <>
@@ -66,6 +70,20 @@ const NavigationDrawers: React.FC<NavigationDrawersProps> = ({
                             <button onClick={() => setIsLeftDrawerOpen(false)} title="Close Menu" aria-label="Close Menu"><X size={20} className="text-gray-500" /></button>
                         </div>
                         <div className="flex flex-col gap-3">
+                            {/* View Switcher for Mobile */}
+                            <button
+                                onClick={() => {
+                                    onToggleViewMode?.(viewMode === 'flow' ? 'vatvriksha' : 'flow');
+                                    setIsLeftDrawerOpen(false);
+                                }}
+                                className="w-full flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 p-3 rounded-xl text-white font-bold transition-colors"
+                            >
+                                <span className="text-xl">🌳</span>
+                                {viewMode === 'flow'
+                                    ? (language === 'HI' ? 'वटवृक्ष दर्शन' : language === 'GU' ? 'વટવૃક્ષ દર્શન' : 'Switch to Tree View')
+                                    : (language === 'HI' ? 'कार्ड व्यू' : language === 'GU' ? 'કાર્ડ વ્યૂ' : 'Switch to Cards View')}
+                            </button>
+
                             <button onClick={() => { setIsSearchOpen(true); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-blue-600 p-3 rounded-xl text-white font-bold"><SearchIcon size={20} />{t.findPerson}</button>
                             <button onClick={() => { setIsTimelineOpen(true); setIsLeftDrawerOpen(false); }} className="w-full flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border border-gray-200 dark:border-slate-700 text-orange-600 dark:text-orange-400 font-bold"><Calendar size={20} />{t.timeline}</button>
                             {user.role === 'ADMIN' && (

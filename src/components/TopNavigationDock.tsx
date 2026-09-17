@@ -56,6 +56,8 @@ interface TopNavigationDockProps {
     currentFamilyId?: string;
     onSelectFamily?: (familyId: string) => void;
     onOpenAdminModal?: () => void;
+    viewMode?: 'flow' | 'vatvriksha';
+    onToggleViewMode?: (mode: 'flow' | 'vatvriksha') => void;
 }
 
 export default function TopNavigationDock({
@@ -85,6 +87,8 @@ export default function TopNavigationDock({
     currentFamilyId,
     onSelectFamily,
     onOpenAdminModal,
+    viewMode = 'flow',
+    onToggleViewMode,
 }: TopNavigationDockProps) {
     const [isExportOpen, setIsExportOpen] = useState(false);
     const [isGenMenuOpen, setIsGenMenuOpen] = useState(false);
@@ -226,6 +230,36 @@ export default function TopNavigationDock({
 
                 {/* Center: Search & Navigation Tools */}
                 <div className="flex items-center gap-1 sm:gap-1.5">
+                    {/* View Mode Switcher: Flowchart vs Botanical Vatvriksha */}
+                    <div className="flex items-center bg-gray-100/90 dark:bg-slate-800/90 rounded-xl p-0.5 border border-gray-200/60 dark:border-slate-700/60 shadow-xs mr-0.5">
+                        <button
+                            onClick={() => onToggleViewMode?.('flow')}
+                            className={clsx(
+                                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all",
+                                viewMode === 'flow'
+                                    ? (theme === 'rajashahi' ? "bg-[#800000] text-[#ffd700] shadow-sm" : "bg-blue-600 text-white shadow-sm")
+                                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                            )}
+                            title="Flowchart / Card Grid View (कार्ड व्यू)"
+                        >
+                            <span>📊</span>
+                            <span className="hidden md:inline">{language === 'HI' ? 'कार्ड व्यू' : language === 'GU' ? 'કાર્ડ વ્યૂ' : 'Cards'}</span>
+                        </button>
+                        <button
+                            onClick={() => onToggleViewMode?.('vatvriksha')}
+                            className={clsx(
+                                "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all",
+                                viewMode === 'vatvriksha'
+                                    ? (theme === 'rajashahi' ? "bg-[#800000] text-[#ffd700] shadow-sm" : "bg-emerald-600 text-white shadow-sm")
+                                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                            )}
+                            title="Botanical Banyan Tree View (वटवृक्ष दर्शन)"
+                        >
+                            <span>🌳</span>
+                            <span className="hidden md:inline">{language === 'HI' ? 'वटवृक्ष' : language === 'GU' ? 'વટવૃક્ષ' : 'Tree'}</span>
+                        </button>
+                    </div>
+
                     {/* Fast Search trigger button */}
                     <button
                         onClick={onOpenSearch}

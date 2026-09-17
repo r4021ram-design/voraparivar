@@ -48,6 +48,7 @@ import type { UserData } from './types/auth';
 import { AdminManagementModal } from './features/admin/components/AdminManagementModal';
 import { fetchFamilies, DEFAULT_FAMILY_ID } from './features/families/services/familyService';
 import type { Family } from './features/families/types';
+import { VatvrikshaView } from './features/family-tree/components/vatvriksha/VatvrikshaView';
 
 const nodeTypes = {
   familyNode: FamilyNode,
@@ -63,6 +64,9 @@ interface FamilyTreeFlowProps {
 }
 
 const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
+  // View Mode: 'flow' (Cards & Flowchart) vs 'vatvriksha' (Botanical Banyan Tree)
+  const [viewMode, setViewMode] = useState<'flow' | 'vatvriksha'>('flow');
+
   // Multi-Family State
   const [families, setFamilies] = useState<Family[]>([]);
   const [selectedFamilyId, setSelectedFamilyId] = useState<string>(
@@ -412,6 +416,8 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           currentFamilyId={selectedFamilyId}
           onSelectFamily={(famId) => setSelectedFamilyId(famId)}
           onOpenAdminModal={() => setIsAdminModalOpen(true)}
+          viewMode={viewMode}
+          onToggleViewMode={setViewMode}
         />
 
         {/* Mobile Left Drawer Trigger */}
@@ -426,85 +432,109 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           </button>
         </div>
 
-        {/* Cultural Heading Banner */}
-        <div className="absolute top-16 sm:top-20 left-1/2 -translate-x-1/2 flex flex-col items-center text-center pointer-events-none z-10 px-4 w-full max-w-2xl animate-in fade-in duration-500">
-          <p className="hidden sm:block text-[10px] sm:text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 rajashahi:text-amber-800/90 italic leading-tight max-w-xl">
-            {prefs.headerVerse}
-          </p>
-          <h1 className="text-xl sm:text-3xl font-black tracking-tight text-gray-900 dark:text-white rajashahi:text-[#800000] drop-shadow-sm mt-0.5 flex items-center gap-1.5 pointer-events-auto">
-            <span>
-              {selectedFamilyId !== DEFAULT_FAMILY_ID && families.find(f => f.id === selectedFamilyId)
-                ? `${families.find(f => f.id === selectedFamilyId)?.name} વંશાવલી`
-                : prefs.headerTitle}
-            </span>
-            <span className="hidden sm:inline text-blue-600 rajashahi:text-[#ffd700]">|</span>
-            {user.role === 'ADMIN' && (
-              <button
-                onClick={() => prefs.setIsEditingHeader(true)}
-                className="p-1 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors"
-                title="Edit Header Title & Verse"
-              >
-                <Palette size={14} />
-              </button>
-            )}
-          </h1>
-        </div>
-
-        {/* Ancestor Lineage Breadcrumbs */}
-        <div className="absolute top-28 sm:top-32 left-1/2 -translate-x-1/2 z-20">
-          <Breadcrumbs
-            currentNodeId={selectedNodeId}
+        {/* Main Viewport: Either Botanical Vatvriksha or ReactFlow Cards */}
+        {viewMode === 'vatvriksha' ? (
+          <VatvrikshaView
             treeData={currentData}
-            onNavigate={handleFocusNode}
             language={prefs.language}
+            theme={prefs.theme}
+            highlightedPath={highlightedPath}
+            selectedNodeId={selectedNodeId}
+            userRole={user.role}
+            headerTitle={
+              selectedFamilyId !== DEFAULT_FAMILY_ID && families.find(f => f.id === selectedFamilyId)
+                ? `${families.find(f => f.id === selectedFamilyId)?.name} વંશાવલી વટવૃક્ષ`
+                : prefs.headerTitle
+            }
+            headerVerse={prefs.headerVerse}
+            onViewDetails={handleViewDetails}
+            onEditPerson={handleEditPerson}
+            onAddChild={handleAddChild}
+            onKinshipSelect={handleOpenKinshipForPerson}
           />
-        </div>
+        ) : (
+          <>
+            {/* Cultural Heading Banner */}
+            <div className="absolute top-16 sm:top-20 left-1/2 -translate-x-1/2 flex flex-col items-center text-center pointer-events-none z-10 px-4 w-full max-w-2xl animate-in fade-in duration-500">
+              <p className="hidden sm:block text-[10px] sm:text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 rajashahi:text-amber-800/90 italic leading-tight max-w-xl">
+                {prefs.headerVerse}
+              </p>
+              <h1 className="text-xl sm:text-3xl font-black tracking-tight text-gray-900 dark:text-white rajashahi:text-[#800000] drop-shadow-sm mt-0.5 flex items-center gap-1.5 pointer-events-auto">
+                <span>
+                  {selectedFamilyId !== DEFAULT_FAMILY_ID && families.find(f => f.id === selectedFamilyId)
+                    ? `${families.find(f => f.id === selectedFamilyId)?.name} વંશાવલી`
+                    : prefs.headerTitle}
+                </span>
+                <span className="hidden sm:inline text-blue-600 rajashahi:text-[#ffd700]">|</span>
+                {user.role === 'ADMIN' && (
+                  <button
+                    onClick={() => prefs.setIsEditingHeader(true)}
+                    className="p-1 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-white/60 dark:hover:bg-slate-800/60 transition-colors"
+                    title="Edit Header Title & Verse"
+                  >
+                    <Palette size={14} />
+                  </button>
+                )}
+              </h1>
+            </div>
 
-        {/* Subtle Bottom-Left Branch Styler (Color & Width) */}
-        <div className="absolute bottom-5 left-16 z-30 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-gray-200/60 dark:border-slate-700/60 shadow-md text-xs font-bold">
-          <span className="text-[10px] text-gray-400 uppercase tracking-tight">Branch:</span>
-          <input
-            type="color"
-            value={prefs.edgeColor}
-            onChange={(e) => prefs.setEdgeColor(e.target.value)}
-            className="w-4 h-4 rounded cursor-pointer border-none bg-transparent"
-            title="Branch Color"
-            aria-label="Branch Color"
-          />
-          <select
-            value={prefs.edgeWidth}
-            onChange={(e) => prefs.setEdgeWidth(parseInt(e.target.value))}
-            className="bg-transparent text-xs font-bold outline-none text-gray-700 dark:text-gray-300 border-none cursor-pointer"
-            title="Branch Thickness"
-            aria-label="Branch Thickness"
-          >
-            {[2, 4, 6, 8].map(w => <option key={w} value={w}>{w}px</option>)}
-          </select>
-        </div>
+            {/* Ancestor Lineage Breadcrumbs */}
+            <div className="absolute top-28 sm:top-32 left-1/2 -translate-x-1/2 z-20">
+              <Breadcrumbs
+                currentNodeId={selectedNodeId}
+                treeData={currentData}
+                onNavigate={handleFocusNode}
+                language={prefs.language}
+              />
+            </div>
 
-        {/* Main Interactive Flow Canvas */}
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={(_, node) => handleFocusNode(node.id)}
-          onPaneClick={clearSelection}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          minZoom={0.05}
-          maxZoom={2}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={true}
-          attributionPosition="bottom-right"
-        >
-          <Background gap={20} size={1} />
-          <Controls position="bottom-left" />
-          <MiniMap zoomable pannable position="bottom-right" />
-        </ReactFlow>
+            {/* Subtle Bottom-Left Branch Styler (Color & Width) */}
+            <div className="absolute bottom-5 left-16 z-30 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-gray-200/60 dark:border-slate-700/60 shadow-md text-xs font-bold">
+              <span className="text-[10px] text-gray-400 uppercase tracking-tight">Branch:</span>
+              <input
+                type="color"
+                value={prefs.edgeColor}
+                onChange={(e) => prefs.setEdgeColor(e.target.value)}
+                className="w-4 h-4 rounded cursor-pointer border-none bg-transparent"
+                title="Branch Color"
+                aria-label="Branch Color"
+              />
+              <select
+                value={prefs.edgeWidth}
+                onChange={(e) => prefs.setEdgeWidth(parseInt(e.target.value))}
+                className="bg-transparent text-xs font-bold outline-none text-gray-700 dark:text-gray-300 border-none cursor-pointer"
+                title="Branch Thickness"
+                aria-label="Branch Thickness"
+              >
+                {[2, 4, 6, 8].map(w => <option key={w} value={w}>{w}px</option>)}
+              </select>
+            </div>
+
+            {/* Main Interactive Flow Canvas */}
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={(_, node) => handleFocusNode(node.id)}
+              onPaneClick={clearSelection}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              minZoom={0.05}
+              maxZoom={2}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={true}
+              attributionPosition="bottom-right"
+            >
+              <Background gap={20} size={1} />
+              <Controls position="bottom-left" />
+              <MiniMap zoomable pannable position="bottom-right" />
+            </ReactFlow>
+          </>
+        )}
 
         {/* Modals and Drawers */}
         <EditModal
@@ -602,6 +632,8 @@ const FamilyTreeFlow = ({ user, onLogout }: FamilyTreeFlowProps) => {
           handlePrint={handlePrint}
           handleReset={handleReset}
           onLogout={onLogout}
+          viewMode={viewMode}
+          onToggleViewMode={setViewMode}
         />
 
         <TranslationOverlay progress={translationProgress} />
